@@ -17,7 +17,11 @@ use App\Http\Controllers\Admin\ShippingMethodController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\UserRoleController;
 use App\Http\Controllers\Admin\WebsiteParameterController;
+use App\Http\Controllers\HotelController; // Add this line
 use App\Http\Controllers\Admin\AdminTestimonialController;
+use App\Http\Controllers\Admin\LocationCategoryController;
+use App\Http\Controllers\Admin\LocationController;
+use App\Http\Controllers\Admin\AttributeController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\WebsiteHomeController;
@@ -617,6 +621,16 @@ Route::middleware(['userRole:admin','auth'])->prefix('admin')->group(function(){
 
     // Vehicle Assignment Admin Routes
     Route::resource('vehicle-assignments', \App\Http\Controllers\Admin\VehicleAssignmentController::class)->names('admin.vehicle_assignments');
+
+    Route::resource('location-categories', LocationCategoryController::class)->names('admin.location-categories');
+
+    Route::resource('locations', LocationController::class)->names('admin.locations');
+
+    Route::resource('attributes', AttributeController::class)->names('admin.attributes');
+
+    // Hotels
+    Route::resource('hotels', HotelController::class)->names('admin.hotels');
+
 
 });
 
