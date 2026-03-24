@@ -31,4 +31,10 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'agoda' => [
+        'endpoint' => env('AGODA_ENDPOINT'),
+        'site_id' => env('AGODA_SITE_ID'),
+        'api_key' => env('AGODA_API_KEY'),
+    ],
+
 ];

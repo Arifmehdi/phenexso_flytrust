@@ -31,8 +31,19 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use App\Http\Controllers\SslCommerzPaymentController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\AgodaController;
 
 // Route::get('/',[AuthController::class,'index'])->name('login');
+
+// Route::get('/agoda-hotel-search', [AgodaController::class, 'search']);
+// Add this route
+Route::post('/api/hotels/search', [AgodaController::class, 'search'])->name('hotels.search');
+
+Route::get('/test-agoda', function() {
+    $agoda = app(\App\Services\AgodaService::class);
+    $result = $agoda->searchByCity(9395); // Bangkok test
+    return response()->json($result);
+});
 
 Route::get('image', function () {
     Artisan::call('storage:link');

@@ -1255,26 +1255,16 @@
                                         
                                         <div class="airport-suggestion" id="hotel-destination-dropdown">
                                             <div class="input-wrapper">
-                                                <input type="text" placeholder="Type city or hotel name" id="hotel-destination-search">
+                                                <input type="text" placeholder="Type city or hotel name" id="hotel-destination-search" onkeyup="filterHotelDestinations()">
                                                 <span class="close-btn" onclick="closeDropdown('hotel-destination')">×</span>
                                             </div>
-                                            <div class="airport-list">
-                                                <div class="airport-item" onclick="selectHotelDestination('Dhaka', 'Bangladesh')">
-                                                    <div class="airport-name">Dhaka</div>
-                                                    <div class="airport-code">Bangladesh</div>
+                                            <div class="airport-list" id="hotel-destination-list">
+                                                @foreach(config('cities.agoda_city_ids', []) as $cityName => $cityId)
+                                                <div class="airport-item" onclick="selectHotelDestination('{{ $cityName }}', '')">
+                                                    <div class="airport-name">{{ $cityName }}</div>
+                                                    <div class="airport-code">Agoda Destination</div>
                                                 </div>
-                                                <div class="airport-item" onclick="selectHotelDestination('Cox\'s Bazar', 'Bangladesh')">
-                                                    <div class="airport-name">Cox's Bazar</div>
-                                                    <div class="airport-code">Bangladesh</div>
-                                                </div>
-                                                <div class="airport-item" onclick="selectHotelDestination('Chittagong', 'Bangladesh')">
-                                                    <div class="airport-name">Chittagong</div>
-                                                    <div class="airport-code">Bangladesh</div>
-                                                </div>
-                                                <div class="airport-item" onclick="selectHotelDestination('Sylhet', 'Bangladesh')">
-                                                    <div class="airport-name">Sylhet</div>
-                                                    <div class="airport-code">Bangladesh</div>
-                                                </div>
+                                                @endforeach
                                             </div>
                                         </div>
                                     </div>
@@ -1352,7 +1342,7 @@
                                 </div>
                             </div>
                             <div class="search-btn-container">
-                                <button type="button" class="search-btn">Search Hotels</button>
+                                <button type="button" class="search-btn" onclick="searchHotels()">Search Hotels</button>
                             </div>
                         </div>
 
@@ -2274,6 +2264,24 @@
         document.getElementById('hotel-destination-value').textContent = city;
         document.getElementById('hotel-destination-sub').textContent = country;
         closeDropdown('hotel-destination');
+        // If you want immediate redirection, you could call searchHotels() here
+    }
+
+    function filterHotelDestinations() {
+        const input = document.getElementById('hotel-destination-search');
+        const filter = input.value.toLowerCase();
+        const list = document.getElementById('hotel-destination-list');
+        const items = list.getElementsByClassName('airport-item');
+
+        for (let i = 0; i < items.length; i++) {
+            const name = items[i].getElementsByClassName('airport-name')[0].textContent;
+            const code = items[i].getElementsByClassName('airport-code')[0].textContent;
+            if (name.toLowerCase().indexOf(filter) > -1 || code.toLowerCase().indexOf(filter) > -1) {
+                items[i].style.display = "";
+            } else {
+                items[i].style.display = "none";
+            }
+        }
     }
 
     function changeHotelQty(type, change) {
@@ -2340,13 +2348,8 @@ const AGODA_API_ENDPOINT = 'http://affiliateapi7643.agoda.com/affiliateservice/l
 const AGODA_SITE_ID = '123456'; // From PDF example
 const AGODA_API_KEY = '00000000-0000-0000-0000-000000000000'; // From PDF example
 
-// City ID mapping (you'll need to get actual city IDs from Agoda)
-const cityIdMap = {
-    'Dhaka': 9395, // Example from PDF
-    'Cox\'s Bazar': 1234, // Replace with actual ID
-    'Chittagong': 5678, // Replace with actual ID
-    'Sylhet': 9012 // Replace with actual ID
-};
+// City ID mapping initialized from config/cities.php
+const cityIdMap = @json(config('cities.agoda_city_ids', []));
 
 // Function to search hotels using Agoda API
 async function searchHotels() {
@@ -2354,60 +2357,37 @@ async function searchHotels() {
     const cityId = cityIdMap[destination];
     
     if (!cityId) {
-        alert('Destination not supported yet. Please select from available options.');
+        alert('Please select a valid destination from the list.');
         return;
     }
     
     // Format dates for API (YYYY-MM-DD)
-    const checkInDate = formatDateForAPI(
-        document.getElementById('hotel-checkin-day').textContent,
-        document.getElementById('hotel-checkin-month').textContent
-    );
+    const checkInDay = document.getElementById('hotel-checkin-day').textContent;
+    const checkInMonth = document.getElementById('hotel-checkin-month').textContent;
+    const checkOutDay = document.getElementById('hotel-checkout-day').textContent;
+    const checkOutMonth = document.getElementById('hotel-checkout-month').textContent;
     
-    const checkOutDate = formatDateForAPI(
-        document.getElementById('hotel-checkout-day').textContent,
-        document.getElementById('hotel-checkout-month').textContent
-    );
+    const checkInDate = formatDateForAPI(checkInDay, checkInMonth);
+    const checkOutDate = formatDateForAPI(checkOutDay, checkOutMonth);
     
     const adults = parseInt(document.getElementById('hotel-adults').textContent);
     const children = parseInt(document.getElementById('hotel-children').textContent);
     const rooms = parseInt(document.getElementById('hotel-rooms').textContent);
     
-    // Prepare request body as per PDF
+    // Prepare request body MATCHING your AgodaController search() validation
     const requestBody = {
-        "criteria": {
-            "additional": {
-                "currency": "USD", // Default currency
-                "language": "en-us", // Default language
-                "maxResult": 20, // Max 30 per PDF
-                "discountOnly": false,
-                "minimumReviewScore": 0,
-                "minimumStarRating": 0,
-                "occupancy": {
-                    "numberOfAdult": adults,
-                    "numberOfChildren": children
-                },
-                "sortBy": "PriceAsc" // Price ascending
-            },
-            "checkInDate": checkInDate,
-            "checkOutDate": checkOutDate,
-            "cityId": cityId
-        }
+        cityId: cityId,
+        checkInDate: checkInDate,
+        checkOutDate: checkOutDate,
+        adults: adults,
+        children: children,
+        rooms: rooms,
+        destination: destination,
+        currency: 'USD',
+        language: 'en-us'
     };
     
-    // Add children ages if children > 0
-    if (children > 0) {
-        // Default ages if not specified (you might want to add age input)
-        requestBody.criteria.additional.occupancy.childrenAges = Array(children).fill(10);
-    }
-    
-    // Add daily rate range if needed (from PDF example)
-    requestBody.criteria.additional.dailyRate = {
-        "maximum": 10000,
-        "minimum": 1
-    };
-    
-    console.log('Agoda API Request:', requestBody);
+    console.log('Hotel API Request:', requestBody);
     
     try {
         // Show loading
@@ -2416,7 +2396,7 @@ async function searchHotels() {
         searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Searching...';
         searchBtn.disabled = true;
         
-        // Make API call to Agoda
+        // Make API call
         const response = await fetch('/api/hotels/search', {
             method: 'POST',
             headers: {
@@ -2424,11 +2404,7 @@ async function searchHotels() {
                 'Accept': 'application/json',
                 'X-CSRF-TOKEN': csrfToken
             },
-            body: JSON.stringify({
-                agodaRequest: requestBody,
-                destination: destination,
-                rooms: rooms
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const data = await response.json();
@@ -2436,7 +2412,8 @@ async function searchHotels() {
         if (data.success) {
             displayHotelResults(data.data);
         } else {
-            alert('Error searching hotels: ' + (data.error || 'Unknown error'));
+            console.error('Validation Errors:', data.errors);
+            alert('Error searching hotels: ' + (data.error || 'Validation error'));
         }
         
     } catch (error) {
@@ -2450,9 +2427,41 @@ async function searchHotels() {
     }
 }
 
-// Function to display hotel results (you'll need to create a modal similar to flights)
-function displayHotelResults(hotels) {
-    // Create or use existing hotel results modal
+// Add this function to reverse geocode coordinates to get location name
+async function getLocationFromCoordinates(lat, lon) {
+    try {
+        // Using OpenStreetMap Nominatim API (free, no API key required for limited use)
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
+        const data = await response.json();
+        
+        if (data && data.address) {
+            // Try to get city/town/village name
+            const city = data.address.city || 
+                        data.address.town || 
+                        data.address.village || 
+                        data.address.suburb || 
+                        data.address.county ||
+                        'Unknown';
+            
+            const country = data.address.country || '';
+            
+            return {
+                name: city,
+                fullAddress: data.display_name,
+                city: city,
+                country: country,
+                area: data.address.suburb || data.address.neighbourhood || ''
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('Reverse geocoding error:', error);
+        return null;
+    }
+}
+
+// Enhanced displayHotelResults function with location detection
+async function displayHotelResults(hotels) {
     let modal = document.getElementById('hotel-results-modal');
     if (!modal) {
         modal = createHotelResultsModal();
@@ -2473,28 +2482,113 @@ function displayHotelResults(hotels) {
         return;
     }
     
-    resultsList.innerHTML = hotels.map(hotel => `
-        <div class="hotel-card">
+    // Show loading state while fetching locations
+    resultsList.innerHTML = `
+        <div class="loading-spinner" style="padding: 40px; text-align: center;">
+            <div class="spinner"></div>
+            <p>Loading hotel locations...</p>
+        </div>
+    `;
+    
+    // Process hotels in batches to avoid rate limiting
+    const processedHotels = [];
+    const batchSize = 5;
+    
+    for (let i = 0; i < hotels.length; i += batchSize) {
+        const batch = hotels.slice(i, i + batchSize);
+        const batchPromises = batch.map(async (hotel) => {
+            if (hotel.latitude && hotel.longitude) {
+                try {
+                    const location = await getLocationFromCoordinates(hotel.latitude, hotel.longitude);
+                    return { ...hotel, locationInfo: location };
+                } catch (error) {
+                    return { ...hotel, locationInfo: null };
+                }
+            }
+            return { ...hotel, locationInfo: null };
+        });
+        
+        const batchResults = await Promise.all(batchPromises);
+        processedHotels.push(...batchResults);
+        
+        // Update display progressively
+        if (i === 0) {
+            renderHotelCards(processedHotels);
+        } else {
+            // Append new results
+            appendHotelCards(batchResults);
+        }
+    }
+    
+    // Update summary with location diversity
+    updateHotelSummary(processedHotels);
+}
+
+// Function to render hotel cards
+function renderHotelCards(hotels) {
+    const resultsList = document.getElementById('hotel-results-list');
+    resultsList.innerHTML = hotels.map(hotel => generateHotelCard(hotel)).join('');
+}
+
+// Function to append more hotel cards
+function appendHotelCards(hotels) {
+    const resultsList = document.getElementById('hotel-results-list');
+    const newCards = hotels.map(hotel => generateHotelCard(hotel)).join('');
+    resultsList.insertAdjacentHTML('beforeend', newCards);
+}
+
+// Helper function to generate individual hotel card
+function generateHotelCard(hotel) {
+    const locationName = hotel.locationInfo?.name || 
+                        (hotel.latitude && hotel.longitude ? 
+                         `${parseFloat(hotel.latitude).toFixed(4)}, ${parseFloat(hotel.longitude).toFixed(4)}` : 
+                         'Location available');
+    
+    const area = hotel.locationInfo?.area ? `, ${hotel.locationInfo.area}` : '';
+    const country = hotel.locationInfo?.country ? `, ${hotel.locationInfo.country}` : '';
+    const fullLocation = hotel.locationInfo ? 
+                        `${locationName}${area}${country}` : 
+                        'Click map to see location';
+    
+    return `
+        <div class="hotel-card" data-lat="${hotel.latitude || ''}" data-lng="${hotel.longitude || ''}">
             <div class="hotel-header">
                 <div class="hotel-image">
-                    <img src="${hotel.imageURL}" alt="${hotel.hotelName}" onerror="this.src='https://via.placeholder.com/300x200?text=Hotel'">
+                    <img src="${hotel.imageURL || 'https://via.placeholder.com/300x200?text=Hotel'}" 
+                         alt="${hotel.hotelName}" 
+                         onerror="this.src='https://via.placeholder.com/300x200?text=Hotel'">
                 </div>
                 <div class="hotel-info">
                     <h4>${hotel.hotelName}</h4>
+                    
+                    <div class="hotel-location" onclick="openLocationMap(${hotel.latitude}, ${hotel.longitude}, '${hotel.hotelName.replace(/'/g, "\\'")}')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: middle; margin-right: 5px;">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                        </svg>
+                        <span class="location-text" title="${fullLocation.replace(/"/g, '&quot;')}">${fullLocation}</span>
+                        <span class="map-link">(View on map)</span>
+                    </div>
+                    
                     <div class="hotel-rating">
                         <span class="stars">${generateStars(hotel.starRating)}</span>
-                        <span class="review-score">${hotel.reviewScore || 'N/A'}/10</span>
+                        ${hotel.reviewScore ? 
+                            `<span class="review-score">${hotel.reviewScore}/10</span>` : 
+                            ''}
                     </div>
+                    
                     <div class="hotel-features">
                         ${hotel.freeWifi ? '<span class="feature">Free WiFi</span>' : ''}
                         ${hotel.includeBreakfast ? '<span class="feature">Breakfast</span>' : ''}
                     </div>
                 </div>
             </div>
+            
             <div class="hotel-details">
                 <div class="hotel-price">
                     <div class="price-container">
-                        <span class="original-price">$${hotel.crossedOutRate}</span>
+                        ${hotel.crossedOutRate ? 
+                            `<span class="original-price">$${hotel.crossedOutRate}</span>` : 
+                            ''}
                         <span class="current-price">$${hotel.dailyRate}</span>
                         ${hotel.discountPercentage > 0 ? 
                             `<span class="discount">${hotel.discountPercentage}% OFF</span>` : 
@@ -2508,7 +2602,36 @@ function displayHotelResults(hotels) {
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+}
+
+// Function to update summary with location info
+function updateHotelSummary(hotels) {
+    const summaryElement = document.getElementById('hotel-results-summary');
+    if (!summaryElement) return;
+    
+    // Get unique locations
+    const locations = new Set();
+    hotels.forEach(hotel => {
+        if (hotel.locationInfo?.name) {
+            locations.add(hotel.locationInfo.name);
+        }
+    });
+    
+    const locationCount = locations.size;
+    const summaryText = locationCount > 0 ? 
+        `Found ${hotels.length} hotels in ${locationCount} location${locationCount > 1 ? 's' : ''}` :
+        `Found ${hotels.length} hotels`;
+    
+    summaryElement.textContent = summaryText;
+}
+
+// Function to open location in Google Maps
+function openLocationMap(lat, lng, hotelName) {
+    if (lat && lng) {
+        const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}&query_place=${encodeURIComponent(hotelName)}`;
+        window.open(url, '_blank');
+    }
 }
 
 // Helper function to generate star rating
@@ -2529,18 +2652,23 @@ function generateStars(rating) {
     return stars;
 }
 
-// Create hotel results modal (similar to flight modal)
+// Create hotel results modal with enhanced styling
 function createHotelResultsModal() {
     const modalHTML = `
         <div class="hotel-results-modal" id="hotel-results-modal">
             <div class="hotel-results-container">
                 <div class="hotel-results-header">
-                    <h2>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/>
-                        </svg>
-                        Hotel Search Results
-                    </h2>
+                    <div>
+                        <h2>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9c0-2.21-1.79-4-4-4z"/>
+                            </svg>
+                            Hotel Search Results
+                        </h2>
+                        <div class="results-summary" id="hotel-results-summary">
+                            Searching for hotels...
+                        </div>
+                    </div>
                     <button type="button" class="close-results-btn" onclick="closeHotelResults()">×</button>
                 </div>
                 <div class="hotel-results-body">
@@ -2552,7 +2680,7 @@ function createHotelResultsModal() {
         </div>
     `;
     
-    // Add CSS for hotel results
+    // Add CSS for hotel results with location styling
     const hotelCSS = `
         <style>
             .hotel-results-modal {
@@ -2593,7 +2721,19 @@ function createHotelResultsModal() {
                 z-index: 100;
                 display: flex;
                 justify-content: space-between;
+                align-items: flex-start;
+            }
+            
+            .hotel-results-header h2 {
+                margin: 0 0 10px 0;
+                display: flex;
                 align-items: center;
+                gap: 10px;
+            }
+            
+            .results-summary {
+                font-size: 14px;
+                opacity: 0.9;
             }
             
             .hotel-card {
@@ -2602,8 +2742,12 @@ function createHotelResultsModal() {
                 margin: 15px 20px;
                 padding: 15px;
                 background: #fff;
-                display: flex;
-                flex-direction: column;
+                transition: all 0.3s;
+            }
+            
+            .hotel-card:hover {
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+                transform: translateY(-2px);
             }
             
             .hotel-header {
@@ -2631,15 +2775,50 @@ function createHotelResultsModal() {
             }
             
             .hotel-info h4 {
-                margin: 0 0 10px 0;
+                margin: 0 0 8px 0;
                 color: #111827;
+                font-size: 18px;
+            }
+            
+            .hotel-location {
+                margin: 8px 0;
+                font-size: 14px;
+                color: #4b5563;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 5px;
+                padding: 5px 0;
+                border-bottom: 1px dashed #e5e7eb;
+            }
+            
+            .hotel-location:hover {
+                color: #2563eb;
+            }
+            
+            .hotel-location:hover .map-link {
+                text-decoration: underline;
+            }
+            
+            .location-text {
+                max-width: 300px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            
+            .map-link {
+                color: #2563eb;
+                font-size: 12px;
+                font-weight: 500;
             }
             
             .hotel-rating {
                 display: flex;
                 gap: 10px;
                 align-items: center;
-                margin-bottom: 10px;
+                margin: 10px 0;
             }
             
             .stars {
@@ -2679,7 +2858,7 @@ function createHotelResultsModal() {
             }
             
             .price-container {
-                text-align: right;
+                text-align: left;
             }
             
             .original-price {
@@ -2693,7 +2872,7 @@ function createHotelResultsModal() {
                 color: #111827;
                 font-size: 24px;
                 font-weight: bold;
-                display: block;
+                display: inline-block;
             }
             
             .discount {
@@ -2703,19 +2882,21 @@ function createHotelResultsModal() {
                 border-radius: 12px;
                 font-size: 12px;
                 margin-left: 8px;
+                display: inline-block;
             }
             
             .per-night {
                 color: #6b7280;
                 font-size: 12px;
                 display: block;
+                margin-top: 4px;
             }
             
             .book-hotel-btn {
                 background: linear-gradient(135deg, #10b981 0%, #059669 100%);
                 color: white;
                 border: none;
-                padding: 10px 25px;
+                padding: 12px 30px;
                 border-radius: 8px;
                 font-weight: 600;
                 cursor: pointer;
@@ -2727,6 +2908,55 @@ function createHotelResultsModal() {
             .book-hotel-btn:hover {
                 transform: translateY(-2px);
                 box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+            }
+            
+            .loading-spinner {
+                text-align: center;
+                padding: 60px;
+            }
+            
+            .spinner {
+                width: 50px;
+                height: 50px;
+                border: 5px solid #f3f3f3;
+                border-top: 5px solid #2563eb;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin: 0 auto 20px;
+            }
+            
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            
+            @media (max-width: 768px) {
+                .hotel-header {
+                    flex-direction: column;
+                }
+                
+                .hotel-image {
+                    width: 100%;
+                    height: 200px;
+                }
+                
+                .hotel-price {
+                    flex-direction: column;
+                    gap: 15px;
+                    align-items: stretch;
+                }
+                
+                .price-container {
+                    text-align: center;
+                }
+                
+                .book-hotel-btn {
+                    text-align: center;
+                }
+                
+                .location-text {
+                    max-width: 200px;
+                }
             }
         </style>
     `;

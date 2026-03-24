@@ -1,0 +1,843 @@
+use App\Http\Controllers\AgodaController;
+Route::post('/api/hotels/search', [AgodaController::class, 'search'])->name('hotels.search');
+
+Route::get('/test-agoda', function() {
+    $agoda = app(\App\Services\AgodaService::class);
+    $result = $agoda->searchByCity(9395); // Bangkok test
+    return response()->json($result);
+});
+
+this is my api 
+"<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class AgodaService
+{
+    protected $endpoint;
+    protected $authorization;
+
+    public function __construct()
+    {
+        $this->endpoint = config('services.agoda.endpoint');
+        $siteId = config('services.agoda.site_id');
+        $apiKey = config('services.agoda.api_key');
+        $this->authorization = $siteId . ':' . $apiKey;
+        
+        Log::info('Agoda Service Initialized with Site ID: ' . $siteId);
+    }
+
+    public function getCityIdByName($name)
+    {
+        $cityIdMap = config('cities.agoda_city_ids', []);
+        
+        // Convert map keys to lowercase for case-insensitive lookup
+        $lowerMap = [];
+        foreach ($cityIdMap as $cityName => $id) {
+            $lowerMap[strtolower($cityName)] = $id;
+        }
+
+        $name = strtolower(trim($name));
+        return $lowerMap[$name] ?? null;
+    }
+
+    public function searchByCity(
+        $cityId, 
+        $checkInDate = null, 
+        $checkOutDate = null, 
+        $adults = 2, 
+        $children = 0,
+        $rooms = 1,
+        $currency = 'USD',
+        $language = 'en-us',
+        $maxResult = 20,
+        $childrenAges = []
+    ) {
+        // Set default dates if not provided
+        if (!$checkInDate) {
+            $checkInDate = now()->addDays(1)->format('Y-m-d');
+        }
+        if (!$checkOutDate) {
+            $checkOutDate = now()->addDays(2)->format('Y-m-d');
+        }
+
+        // Build occupancy
+        $occupancy = [
+            'numberOfAdult' => (int)$adults,
+            'numberOfChildren' => (int)$children
+        ];
+
+        // Add children ages if children > 0 and ages provided
+        if ($children > 0 && !empty($childrenAges)) {
+            $occupancy['childrenAges'] = $childrenAges;
+        }
+
+        $body = [
+            "criteria" => [
+                "additional" => [
+                    "currency" => $currency,
+                    "language" => $language,
+                    "maxResult" => (int)$maxResult,
+                    "discountOnly" => false,
+                    "minimumReviewScore" => 0,
+                    "minimumStarRating" => 0,
+                    "occupancy" => $occupancy,
+                    "sortBy" => "PriceAsc",
+                    "dailyRate" => [
+                        "maximum" => 10000,
+                        "minimum" => 1
+                    ]
+                ],
+                "checkInDate" => $checkInDate,
+                "checkOutDate" => $checkOutDate,
+                "cityId" => (int)$cityId
+            ]
+        ];
+
+        // Log request for debugging
+        Log::info('Agoda API Request:', $body);
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $this->authorization,
+                'Accept-Encoding' => 'gzip, deflate',
+                'Content-Type' => 'application/json'
+            ])->post($this->endpoint, $body);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                Log::info('Agoda API Response Success', ['count' => count($data['results'] ?? [])]);
+                return $data;
+            } else {
+                Log::error('Agoda API Error:', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                
+                return [
+                    'error' => [
+                        'id' => $response->status(),
+                        'message' => 'API request failed with status: ' . $response->status()
+                    ]
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Agoda API Exception: ' . $e->getMessage());
+            
+            return [
+                'error' => [
+                    'id' => 500,
+                    'message' => 'Connection error: ' . $e->getMessage()
+                ]
+            ];
+        }
+    }
+}"
+
+
+this is service logic
+
+"<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Hotel;
+use App\Services\AgodaService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
+use Illuminate\Support\Str;
+
+class AgodaController extends Controller
+{
+    protected $agoda;
+
+    public function __construct(AgodaService $agoda)
+    {
+        $this->agoda = $agoda;
+    }
+
+    public function search(Request $request)
+    {
+        try {
+            // Log incoming request
+            Log::info('Hotel search request received', $request->all());
+
+            // Validate request from frontend
+            $validated = $request->validate([
+                'cityId' => 'required|integer',
+                'checkInDate' => 'required|date',
+                'checkOutDate' => 'required|date|after:checkInDate',
+                'adults' => 'required|integer|min:1',
+                'children' => 'integer|min:0',
+                'rooms' => 'required|integer|min:1',
+                'currency' => 'nullable|string',
+                'language' => 'nullable|string',
+                'maxResult' => 'nullable|integer|min:1|max:30',
+                'destination' => 'nullable|string'
+            ]);
+
+            // 1. Check database for existing data for this cityId that is < 15 minutes old
+            $cacheLimit = Carbon::now()->subMinutes(15);
+            $cachedHotels = Hotel::where('agoda_hotel_id', '!=', null)
+                // Since Agoda results vary by date/occupancy, purely caching by cityId might be simplified.
+                // For true caching, you'd include dates/occupancy in the check.
+                // But as per user request "check any new changes if changed than retrieved form api if not than show database"
+                // we'll check based on the cityId and the last sync time.
+                ->where('agoda_last_synced_at', '>', $cacheLimit)
+                ->where(function($q) use ($validated) {
+                     // We store the city ID in agoda_data or we can assume if it's found it's relevant
+                     // To be more precise, let's filter by cityId stored in agoda_data if we had it
+                })
+                ->get();
+
+            // Note: In a real-world scenario, Agoda API results are highly dynamic (prices change per second).
+            // Here we implement the logic requested by the user.
+            
+            // To properly implement "check any new changes", we usually have to call the API anyway.
+            // But if we strictly follow "show database if < 15 mins", we skip the API call.
+
+            if ($cachedHotels->isNotEmpty() && $this->isCacheValid($cachedHotels, $validated['cityId'])) {
+                Log::info('Serving hotel results from database cache');
+                $formattedResults = $this->formatResultsFromDb($cachedHotels, $validated['rooms']);
+                return response()->json([
+                    'success' => true,
+                    'data' => $formattedResults,
+                    'count' => count($formattedResults),
+                    'source' => 'database'
+                ]);
+            }
+
+            // 2. Call Agoda service if no valid cache
+            Log::info('Fetching fresh hotel results from Agoda API');
+            $data = $this->agoda->searchByCity(
+                $validated['cityId'],
+                $validated['checkInDate'],
+                $validated['checkOutDate'],
+                $validated['adults'],
+                $validated['children'],
+                $validated['rooms'],
+                $validated['currency'] ?? 'USD',
+                $validated['language'] ?? 'en-us',
+                $validated['maxResult'] ?? 20
+            );
+
+            // Check if response contains error
+            if (isset($data['error'])) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $data['error']['message'] ?? 'Unknown error',
+                    'error_code' => $data['error']['id'] ?? null
+                ], 400);
+            }
+
+            // 3. Save/Update results to database
+            $this->syncHotelsToDatabase($data, $validated['cityId']);
+
+            // Format results for frontend
+            $formattedResults = $this->formatResults($data, $validated['rooms']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $formattedResults,
+                'count' => count($formattedResults),
+                'source' => 'api'
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Hotel search error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Server error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function isCacheValid($hotels, $cityId) {
+        // Check if any of these hotels belong to the requested cityId
+        foreach($hotels as $hotel) {
+            if (isset($hotel->agoda_data['cityId']) && $hotel->agoda_data['cityId'] == $cityId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function syncHotelsToDatabase($data, $cityId)
+    {
+        if (isset($data['results']) && is_array($data['results'])) {
+            foreach ($data['results'] as $hotelData) {
+                $agodaId = $hotelData['hoteld'] ?? $hotelData['hotelId'] ?? null;
+                if (!$agodaId) continue;
+
+                $address = $hotelData['address'] ?? '';
+                if (empty($address) && isset($hotelData['latitude']) && isset($hotelData['longitude'])) {
+                    $address = "Location: " . $hotelData['latitude'] . ", " . $hotelData['longitude'];
+                }
+
+                Hotel::updateOrCreate(
+                    ['agoda_hotel_id' => $agodaId],
+                    [
+                        'title' => $hotelData['hotelName'] ?? 'Agoda Hotel',
+                        'slug' => Str::slug($hotelData['hotelName'] ?? 'agoda-hotel') . '-' . $agodaId,
+                        'star_rate' => $hotelData['starRating'] ?? 0,
+                        'price' => $hotelData['dailyRate'] ?? 0,
+                        'address' => $address,
+                        'status' => 'publish',
+                        'agoda_last_synced_at' => Carbon::now(),
+                        'agoda_data' => array_merge($hotelData, ['cityId' => $cityId, 'address' => $address]),
+                    ]
+                );
+            }
+        }
+    }
+
+    private function formatResultsFromDb($hotels, $rooms)
+    {
+        $results = [];
+        foreach ($hotels as $hotel) {
+            $agodaData = $hotel->agoda_data;
+            $dailyRate = $hotel->price;
+            $totalPrice = $dailyRate * $rooms;
+
+            $results[] = [
+                'hotelId' => $hotel->agoda_hotel_id,
+                'hotelName' => $hotel->title,
+                'imageURL' => $agodaData['imageURL'] ?? null,
+                'starRating' => $hotel->star_rate,
+                'reviewScore' => $agodaData['reviewScore'] ?? null,
+                'dailyRate' => $dailyRate,
+                'totalPrice' => $totalPrice,
+                'crossedOutRate' => $agodaData['crossedOutRate'] ?? null,
+                'discountPercentage' => $agodaData['discountPercentage'] ?? 0,
+                'currency' => $agodaData['currency'] ?? 'USD',
+                'freeWifi' => $agodaData['freeWifi'] ?? false,
+                'includeBreakfast' => $agodaData['includeBreakfast'] ?? false,
+                'landingURL' => $agodaData['landingURL'] ?? $this->buildLandingUrl($agodaData, $rooms),
+                'address' => $hotel->address,
+                'latitude' => $agodaData['latitude'] ?? null,
+                'longitude' => $agodaData['longitude'] ?? null,
+            ];
+        }
+        return $results;
+    }
+
+    private function formatResults($data, $rooms)
+    {
+        $results = [];
+
+        if (isset($data['results']) && is_array($data['results'])) {
+            foreach ($data['results'] as $hotel) {
+                $dailyRate = $hotel['dailyRate'] ?? 0;
+                $totalPrice = $dailyRate * $rooms;
+                
+                $address = $hotel['address'] ?? '';
+                if (empty($address) && isset($hotel['latitude']) && isset($hotel['longitude'])) {
+                    $address = "Location: " . $hotel['latitude'] . ", " . $hotel['longitude'];
+                }
+
+                $results[] = [
+                    'hotelId' => $hotel['hoteld'] ?? $hotel['hotelId'] ?? null,
+                    'hotelName' => $hotel['hotelName'] ?? 'Unknown Hotel',
+                    'imageURL' => $hotel['imageURL'] ?? null,
+                    'starRating' => $hotel['starRating'] ?? 0,
+                    'reviewScore' => $hotel['reviewScore'] ?? null,
+                    'dailyRate' => $dailyRate,
+                    'totalPrice' => $totalPrice,
+                    'crossedOutRate' => $hotel['crossedOutRate'] ?? null,
+                    'discountPercentage' => $hotel['discountPercentage'] ?? 0,
+                    'currency' => $hotel['currency'] ?? 'USD',
+                    'freeWifi' => $hotel['freeWifi'] ?? false,
+                    'includeBreakfast' => $hotel['includeBreakfast'] ?? false,
+                    'landingURL' => $hotel['landingURL'] ?? $this->buildLandingUrl($hotel, $rooms),
+                    'address' => $address,
+                    'latitude' => $hotel['latitude'] ?? null,
+                    'longitude' => $hotel['longitude'] ?? null,
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    private function buildLandingUrl($hotel, $rooms)
+    {
+        return 'https://www.agoda.com/partners/partnersearch.aspx?' . http_build_query([
+            'cid' => config('services.agoda.cid', '1954695'),
+            'hid' => $hotel['hoteld'] ?? $hotel['hotelId'] ?? '',
+            'currency' => $hotel['currency'] ?? 'USD',
+            'checkin' => now()->addDays(1)->format('Y-m-d'),
+            'checkout' => now()->addDays(2)->format('Y-m-d'),
+            'rooms' => $rooms,
+            'adults' => 2,
+        ]);
+    }
+}
+"
+
+
+
+this is controller logic 
+
+"// City ID mapping - you'll need to get actual IDs
+const cityIdMap = {
+    'Dhaka': 9395, // Temporary - using Bangkok ID
+    'Cox\'s Bazar': 9395, // Temporary - using Bangkok ID
+    'Chittagong': 9395, // Temporary - using Bangkok ID
+    'Sylhet': 9395, // Temporary - using Bangkok ID
+    'Bangkok': 9395,
+    'Phuket': 9396
+};
+
+async function searchHotels() {
+    const searchBtn = document.querySelector('#hotel-content .search-btn');
+    const originalText = searchBtn.innerHTML;
+    
+    try {
+        // Get destination
+        const destination = document.getElementById('hotel-destination-value').textContent;
+        const cityId = cityIdMap[destination];
+        
+        if (!cityId) {
+            alert('Please select a valid destination from the list');
+            return;
+        }
+        
+        // Get dates
+        const checkInDay = document.getElementById('hotel-checkin-day').textContent;
+        const checkInMonth = document.getElementById('hotel-checkin-month').textContent;
+        const checkOutDay = document.getElementById('hotel-checkout-day').textContent;
+        const checkOutMonth = document.getElementById('hotel-checkout-month').textContent;
+        
+        // Format dates
+        const checkInDate = formatDateForAPI(checkInDay, checkInMonth);
+        const checkOutDate = formatDateForAPI(checkOutDay, checkOutMonth);
+        
+        // Get guest counts
+        const adults = parseInt(document.getElementById('hotel-adults').textContent);
+        const children = parseInt(document.getElementById('hotel-children').textContent);
+        const rooms = parseInt(document.getElementById('hotel-rooms').textContent);
+        
+        console.log('Searching hotels:', {
+            destination,
+            cityId,
+            checkInDate,
+            checkOutDate,
+            adults,
+            children,
+            rooms
+        });
+        
+        // Show loading
+        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Searching...';
+        searchBtn.disabled = true;
+        
+        // Show results modal with loading
+        showHotelResultsModal({
+            destination: destination,
+            checkIn: checkInDate,
+            checkOut: checkOutDate,
+            guests: adults + children,
+            rooms: rooms
+        });
+        
+        // Make API call
+        const response = await fetch('/api/hotels/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            body: JSON.stringify({
+                cityId: cityId,
+                checkInDate: checkInDate,
+                checkOutDate: checkOutDate,
+                adults: adults,
+                children: children,
+                rooms: rooms,
+                currency: 'USD',
+                language: 'en-us',
+                maxResult: 20
+            })
+        });
+        
+        const data = await response.json();
+        console.log('Hotel search response:', data);
+        
+        if (data.success) {
+            displayHotelResults(data.data);
+            // Update result count
+            const countElement = document.getElementById('hotel-results-count');
+            if (countElement) {
+                countElement.textContent = `${data.count} hotel${data.count !== 1 ? 's' : ''} found`;
+            }
+        } else {
+            showHotelError(data.error || 'Failed to search hotels');
+        }
+        
+    } catch (error) {
+        console.error('Hotel search error:', error);
+        showHotelError('Network error. Please try again.');
+    } finally {
+        // Reset button
+        searchBtn.innerHTML = originalText;
+        searchBtn.disabled = false;
+    }
+}
+
+
+this is add in javascript to show hotel 
+
+
+and api result is here 
+results	
+0	
+hotelId	65517262
+hotelName	"HOSTEL 24 BACKPACKERS"
+starRating	2
+reviewScore	6.7
+reviewCount	121
+currency	"USD"
+dailyRate	4.65
+crossedOutRate	10.72
+discountPercentage	0
+imageURL	"http://q-xx.bstatic.com/xdata/images/hotel/840x460/667973985.jpg?k=998ac473029e2b1b89b0d6f38b2b5e182098a9b866f1adbcd3c86e703fce182e&o="
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=65517262&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	true
+latitude	13.698023796081543
+longitude	100.60604095458984
+1	
+hotelId	49508209
+hotelName	"Good Place(No parking for cars.)"
+starRating	2
+reviewScore	5.6
+reviewCount	17
+currency	"USD"
+dailyRate	4.96
+crossedOutRate	8.09
+discountPercentage	30
+imageURL	"http://pix8.agoda.net/hotelImages/49508209/0/8d004b3b137ae8bec9d2f0d48a0661c6.jpg?ce=0&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=49508209&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.6683109
+longitude	100.5037944
+2	
+hotelId	8027370
+hotelName	"PLOY Hostel"
+starRating	2
+reviewScore	6.4
+reviewCount	3401
+currency	"USD"
+dailyRate	5.3
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/802/8027370/8027370_19061114030075701094.jpg?ca=8&ce=1&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=8027370&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	true
+latitude	13.762672424316406
+longitude	100.50176239013672
+3	
+hotelId	80186833
+hotelName	"best 148 train staytion"
+starRating	0
+reviewScore	8.8
+reviewCount	11
+currency	"USD"
+dailyRate	7.01
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://q-xx.bstatic.com/xdata/images/hotel/840x460/760635449.jpg?k=35d8f1f8a396a7f6b4725b2f4600f98c114e6ba7e74bb48cb254504149152b0c&o="
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=80186833&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.72438907623291
+longitude	100.49152374267578
+4	
+hotelId	18849584
+hotelName	"Jatujak Double Fan 03-05"
+starRating	2
+reviewScore	4.9
+reviewCount	44
+currency	"USD"
+dailyRate	7.01
+crossedOutRate	7.59
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/agoda-homes/18849584/4c9f05acecb0f6e9ac290e46f410aac8.jpg?ca=14&ce=1&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=18849584&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.796428707374117
+longitude	100.55988325321155
+5	
+hotelId	81843741
+hotelName	"Sukhum Rama3 Asiatique"
+starRating	2
+reviewScore	7.3
+reviewCount	27
+currency	"USD"
+dailyRate	7.26
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/81843741/0/92c0fc03951bee9a6d9e5d120d249d5f.jpg?ce=3&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=81843741&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	true
+latitude	13.690388
+longitude	100.50843
+6	
+hotelId	59628931
+hotelName	"City view"
+starRating	2
+reviewScore	2.6
+reviewCount	9
+currency	"USD"
+dailyRate	7.32
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/59628931/0/6142db3f8c9921efdc0ce5596d74f813.jpg?ce=0&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=59628931&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.796533658879166
+longitude	100.55984179634913
+7	
+hotelId	64352772
+hotelName	"希望更好民宿"
+starRating	0
+reviewScore	2.3
+reviewCount	1
+currency	"USD"
+dailyRate	7.61
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://q-xx.bstatic.com/xdata/images/hotel/840x460/630040086.jpg?k=0f38e20c1d946ba812d22b7f97c187f031f524c0c1f3c4346f4bf98e649d320a&o="
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=64352772&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.72585678100586
+longitude	100.52662658691406
+8	
+hotelId	21845954
+hotelName	"Jatujak Twin Fan 9"
+starRating	2.5
+reviewScore	6.1
+reviewCount	35
+currency	"USD"
+dailyRate	7.64
+crossedOutRate	11.74
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/21845954/0/92d505b4f97b34d3712c65040f546e8c.jpg?ca=16&ce=1&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=21845954&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.796473355327782
+longitude	100.55985597154019
+9	
+hotelId	37365390
+hotelName	"Big Bird Palace"
+starRating	3
+reviewScore	6.7
+reviewCount	961
+currency	"USD"
+dailyRate	7.8
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/37365390/-1/f608a5ed06340401f90a7cb7ab885731.jpg?ce=0&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=37365390&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.809441566467285
+longitude	100.60679626464844
+10	
+hotelId	80468606
+hotelName	"Onnut36 Apartment Panasan"
+starRating	3
+reviewScore	6.9
+reviewCount	15
+currency	"USD"
+dailyRate	8.23
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/80468606/0/d7958a229cdeab89276037a77053b702.jpg?ce=2&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=80468606&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	true
+latitude	13.706711
+longitude	100.62394
+11	
+hotelId	71364207
+hotelName	"Noodle Factory - Old THAI House"
+starRating	2.5
+reviewScore	7.5
+reviewCount	87
+currency	"USD"
+dailyRate	8.26
+crossedOutRate	40.41
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/71364207/0/f7c7f11f79a284d98b7711496a16da3a.jpg?ce=2&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=71364207&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.7620868682861
+longitude	100.499084472656
+12	
+hotelId	18510883
+hotelName	"Jatujak Double Fan 03-06"
+starRating	2
+reviewScore	6
+reviewCount	30
+currency	"USD"
+dailyRate	8.46
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/18510883/0/fba4698f39454a79e22005c13bcfeeb9.jpg?ce=0&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=18510883&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.796463012695312
+longitude	100.55986022949219
+13	
+hotelId	67820244
+hotelName	"Jatujak Bangkok guesthouse R 03-06"
+starRating	1.5
+reviewScore	5.8
+reviewCount	15
+currency	"USD"
+dailyRate	8.59
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://q-xx.bstatic.com/xdata/images/hotel/840x460/658664726.jpg?k=fffb25290b844322cdb0d77ad2631d09ee359aa2de799ba33c1fdce14063c465&o="
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=67820244&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.796469688415527
+longitude	100.55984497070312
+14	
+hotelId	6392308
+hotelName	"Jatujak Double 5"
+starRating	1.5
+reviewScore	6.9
+reviewCount	86
+currency	"USD"
+dailyRate	8.73
+crossedOutRate	8.87
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/6392308/0/2f2c1707dd2f9f535f7fd60c9866d33c.jpg?ca=9&ce=1&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=6392308&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.796487808227539
+longitude	100.55986785888672
+15	
+hotelId	22137941
+hotelName	"RQ Suvarnabhumi Airport by Collection O"
+starRating	3.5
+reviewScore	6.4
+reviewCount	429
+currency	"USD"
+dailyRate	8.94
+crossedOutRate	35.76
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/22137941/-1/55c50cd2265ce945783e30bea04b9eb9.jpg?ca=24&ce=0&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=22137941&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	true
+latitude	13.742765426635742
+longitude	100.80134582519531
+16	
+hotelId	13344189
+hotelName	"Jatujak Double  Six"
+starRating	2.5
+reviewScore	6.8
+reviewCount	47
+currency	"USD"
+dailyRate	9.03
+crossedOutRate	12.93
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/agoda-homes/13344189/29648b56f194b377f31d2ca86ea541eb.jpg?ca=10&ce=1&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=13344189&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.79642391204834
+longitude	100.55987548828125
+17	
+hotelId	63191018
+hotelName	"Naka Place House"
+starRating	1.5
+reviewScore	7.3
+reviewCount	377
+currency	"USD"
+dailyRate	9.09
+crossedOutRate	9.78
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/63191018/0/0afeb32bd727df88662e19a01765282e.jpg?ce=0&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=63191018&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	true
+latitude	13.636771202087402
+longitude	100.41600036621094
+18	
+hotelId	59620778
+hotelName	"Sunny"
+starRating	2
+reviewScore	2.8
+reviewCount	4
+currency	"USD"
+dailyRate	9.18
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/59620778/0/cd95bb585ea9d016d00b167554a364aa.jpg?ce=2&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=59620778&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	false
+latitude	13.796371925302815
+longitude	100.55976380013372
+19	
+hotelId	67104428
+hotelName	"Sunny homestay "
+starRating	2.5
+reviewScore	6.8
+reviewCount	23
+currency	"USD"
+dailyRate	9.57
+crossedOutRate	0
+discountPercentage	0
+imageURL	"http://pix8.agoda.net/hotelImages/67104428/-1/8d1159a7541c2e10cadb3c7e699ccc07.jpg?ce=0&s=800x600"
+landingURL	"https://www.agoda.com/partners/partnersearch.aspx?cid=1954695&hid=67104428&currency=USD&checkin=2026-03-20&checkout=2026-03-21&NumberofAdults=2&NumberofChildren=0&Rooms=1&pcs=6"
+includeBreakfast	false
+freeWifi	true
+latitude	13.796466827392578
+longitude	100.5598373413086
+
+
+wen.php 
+--------
+use App\Http\Controllers\AgodaController;
+Route::post('/api/hotels/search', [AgodaController::class, 'search'])->name('hotels.search');
+
+Route::get('/test-agoda', function() {
+    $agoda = app(\App\Services\AgodaService::class);
+    $result = $agoda->searchByCity(9395); // Bangkok test
+    return response()->json($result);
+});
+
+"
+
+
+
+this is api result 
+

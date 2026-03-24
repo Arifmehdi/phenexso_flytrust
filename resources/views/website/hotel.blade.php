@@ -4,341 +4,76 @@
 
 @section('meta')
 <meta name="description"
-    content="North Bengal offers premium dairy products, latest news, and world-class services. Explore our departments and services with ease.">
-<meta name="keywords" content="North Bengal, dairy products, latest news, services, departments, quality dairy">
-<meta property="og:title" content="Home - North Bengal">
-<meta property="og:description"
-    content="Discover North Bengal’s quality dairy products, latest news, and world-class services.">
-<meta property="og:image" content="{{ asset('frontend/assets/img/northbengal/home-banner.png') }}">
+    content="Find the best hotels at competitive prices. Search and book your perfect stay.">
+<meta name="keywords" content="hotels, booking, travel, accommodation">
+<meta property="og:title" content="Hotels - {{ env('APP_NAME') }}">
 <meta property="og:type" content="website">
-<meta name="robots" content="index, follow">
 @endsection
 
 @push('css')
-
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
 @endpush
 
 @section('content')
-    <!-- ================================
-    START BREADCRUMB AREA
-================================= -->
     <x-breadcrumb slug="Hotel" image="bread-bg-7"/>
-    <!-- end breadcrumb-area -->
-    <!-- ================================
-    END BREADCRUMB AREA
-================================= -->
 
-    <!-- ================================
-    START CARD AREA
-================================= -->
     <section class="card-area section--padding">
       <div class="container">
         <div class="row">
           <div class="col-lg-12">
             <div class="filter-wrap margin-bottom-30px">
-              <div
-                class="filter-top d-flex align-items-center justify-content-between pb-4"
-              >
+              <div class="filter-top d-flex align-items-center justify-content-between pb-4">
                 <div>
-                  <h3 class="title font-size-24">2224 Hotels found</h3>
+                  <h3 class="title font-size-24">{{ $hotels->total() }} Hotels found</h3>
                   <p class="font-size-14">
-                    <span class="me-1 pt-1">Book with confidence:</span>No hotel
-                    booking fees
+                    <span class="me-1 pt-1">Book with confidence:</span>No hotel booking fees
                   </p>
                 </div>
-                <div class="layout-view d-flex align-items-center">
-                  <a
-                    href="hotel-grid.html"
-                    data-bs-toggle="tooltip"
-                    data-placement="top"
-                    title="Grid View"
-                    ><i class="la la-th-large"></i
-                  ></a>
-                  <a
-                    href="hotel-list.html"
-                    data-bs-toggle="tooltip"
-                    data-placement="top"
-                    title="List View"
-                    class="active"
-                    ><i class="la la-th-list"></i
-                  ></a>
-                </div>
               </div>
-              <!-- end filter-top -->
-              <div
-                class="filter-bar d-flex align-items-center justify-content-between"
-              >
-                <div
-                  class="filter-bar-filter d-flex flex-wrap align-items-center"
-                >
+              <div class="filter-bar d-flex align-items-center justify-content-between">
+                <div class="filter-bar-filter d-flex flex-wrap align-items-center">
                   <div class="filter-option">
                     <h3 class="title font-size-16">Filter by:</h3>
                   </div>
                   <div class="filter-option">
                     <div class="dropdown dropdown-contain">
-                      <a
-                        class="dropdown-toggle dropdown-btn dropdown--btn"
-                        href="#"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        data-bs-auto-close="outside"
-                      >
+                      <a class="dropdown-toggle dropdown-btn dropdown--btn" href="#" role="button" data-bs-toggle="dropdown" data-bs-auto-close="outside">
                         Filter Price
                       </a>
                       <div class="dropdown-menu dropdown-menu-wrap">
                         <div class="dropdown-item">
                           <div class="slider-range-wrap">
-                            <div
-                              class="price-slider-amount padding-bottom-20px"
-                            >
-                              <label for="amount" class="filter__label"
-                                >Price:</label
-                              >
-                              <input type="text" id="amount" class="amounts" />
+                            <div class="price-slider-amount padding-bottom-20px">
+                              <label for="amount" class="filter__label">Price:</label>
+                              <input type="text" id="amount" class="amounts" readonly style="border:0; color:#f6931f; font-weight:bold;">
+                              <input type="hidden" name="min_price" id="min_price" value="{{ request('min_price', 0) }}">
+                              <input type="hidden" name="max_price" id="max_price" value="{{ request('max_price', 1000) }}">
                             </div>
-                            <!-- end price-slider-amount -->
                             <div id="slider-range"></div>
-                            <!-- end slider-range -->
                           </div>
-                          <!-- end slider-range-wrap -->
                           <div class="btn-box pt-4">
-                            <button
-                              class="theme-btn theme-btn-small theme-btn-transparent"
-                              type="button"
-                            >
-                              Apply
-                            </button>
+                            <button class="theme-btn theme-btn-small theme-btn-transparent" type="button" onclick="applyFilters()">Apply</button>
                           </div>
                         </div>
-                        <!-- end dropdown-item -->
                       </div>
-                      <!-- end dropdown-menu -->
                     </div>
-                    <!-- end dropdown -->
-                  </div>
-                  <div class="filter-option">
-                    <div class="dropdown dropdown-contain">
-                      <a
-                        class="dropdown-toggle dropdown-btn dropdown--btn"
-                        href="#"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        data-bs-auto-close="outside"
-                      >
-                        Review Score
-                      </a>
-                      <div class="dropdown-menu dropdown-menu-wrap">
-                        <div class="dropdown-item">
-                          <div class="checkbox-wrap">
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="r1"
-                              />
-                              <label for="r1">
-                                <span class="ratings d-flex align-items-center">
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <span class="color-text-3 font-size-13 ms-1"
-                                    >(55.590)</span
-                                  >
-                                </span>
-                              </label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="r2"
-                              />
-                              <label for="r2">
-                                <span class="ratings d-flex align-items-center">
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star-o"></i>
-                                  <span class="color-text-3 font-size-13 ms-1"
-                                    >(40.590)</span
-                                  >
-                                </span>
-                              </label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="r3"
-                              />
-                              <label for="r3">
-                                <span class="ratings d-flex align-items-center">
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star-o"></i>
-                                  <i class="la la-star-o"></i>
-                                  <span class="color-text-3 font-size-13 ms-1"
-                                    >(23.590)</span
-                                  >
-                                </span>
-                              </label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="r4"
-                              />
-                              <label for="r4">
-                                <span class="ratings d-flex align-items-center">
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star-o"></i>
-                                  <i class="la la-star-o"></i>
-                                  <i class="la la-star-o"></i>
-                                  <span class="color-text-3 font-size-13 ms-1"
-                                    >(12.590)</span
-                                  >
-                                </span>
-                              </label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="r5"
-                              />
-                              <label for="r5">
-                                <span class="ratings d-flex align-items-center">
-                                  <i class="la la-star"></i>
-                                  <i class="la la-star-o"></i>
-                                  <i class="la la-star-o"></i>
-                                  <i class="la la-star-o"></i>
-                                  <i class="la la-star-o"></i>
-                                  <span class="color-text-3 font-size-13 ms-1"
-                                    >(590)</span
-                                  >
-                                </span>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                        <!-- end dropdown-item -->
-                      </div>
-                      <!-- end dropdown-menu -->
-                    </div>
-                    <!-- end dropdown -->
-                  </div>
-                  <div class="filter-option">
-                    <div class="dropdown dropdown-contain">
-                      <a
-                        class="dropdown-toggle dropdown-btn dropdown--btn"
-                        href="#"
-                        role="button"
-                        data-bs-toggle="dropdown"
-                        data-bs-auto-close="outside"
-                      >
-                        Facilities
-                      </a>
-                      <div class="dropdown-menu dropdown-menu-wrap">
-                        <div class="dropdown-item">
-                          <div class="checkbox-wrap">
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb1"
-                              />
-                              <label for="catChb1">Pet Allowed</label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb2"
-                              />
-                              <label for="catChb2">Groups Allowed</label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb3"
-                              />
-                              <label for="catChb3">Tour Guides</label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb4"
-                              />
-                              <label for="catChb4">Access for disabled</label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb5"
-                              />
-                              <label for="catChb5">Room Service</label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb6"
-                              />
-                              <label for="catChb6">Parking</label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb7"
-                              />
-                              <label for="catChb7">Restaurant</label>
-                            </div>
-                            <div class="custom-checkbox">
-                              <input
-                                type="checkbox"
-                                class="form-check-input"
-                                id="catChb8"
-                              />
-                              <label for="catChb8">Pet friendly</label>
-                            </div>
-                          </div>
-                        </div>
-                        <!-- end dropdown-item -->
-                      </div>
-                      <!-- end dropdown-menu -->
-                    </div>
-                    <!-- end dropdown -->
                   </div>
                 </div>
-                <!-- end filter-bar-filter -->
+
                 <div class="select-contain select2-container-wrapper">
-                  <select class="select-contain-select">
-                    <option value="1">Short by default</option>
-                    <option value="2">Popular Hotel</option>
-                    <option value="3">Price: low to high</option>
-                    <option value="4">Price: high to low</option>
-                    <option value="5">A to Z</option>
+                  <select class="select-contain-select" id="sort_by" onchange="applyFilters()">
+                    <option value="default" {{ request('sort') == 'default' ? 'selected' : '' }}>Sort by default</option>
+                    <option value="price_asc" {{ request('sort') == 'price_asc' ? 'selected' : '' }}>Price: low to high</option>
+                    <option value="price_desc" {{ request('sort') == 'price_desc' ? 'selected' : '' }}>Price: high to low</option>
+                    <option value="star_desc" {{ request('sort') == 'star_desc' ? 'selected' : '' }}>Star Rating: High to Low</option>
+                    <option value="star_asc" {{ request('sort') == 'star_asc' ? 'selected' : '' }}>Star Rating: Low to High</option>
                   </select>
                 </div>
-                <!-- end select-contain -->
               </div>
-              <!-- end filter-bar -->
             </div>
-            <!-- end filter-wrap -->
           </div>
-          <!-- end col-lg-12 -->
         </div>
-        <!-- end row -->
+
         <div class="row">
           <div class="col-lg-4">
             <div class="sidebar mt-0">
@@ -346,866 +81,504 @@
                 <h3 class="title stroke-shape">Search Hotels</h3>
                 <div class="sidebar-widget-item">
                   <div class="contact-form-action">
-                    <form action="#">
+                    <form action="{{ route('hotel') }}" method="GET" id="filterForm">
+                      <input type="hidden" name="min_price" id="form_min_price" value="{{ request('min_price', 0) }}">
+                      <input type="hidden" name="max_price" id="form_max_price" value="{{ request('max_price', 2000) }}">
+                      <input type="hidden" name="sort" id="hidden_sort" value="{{ request('sort', 'default') }}">
+
                       <div class="input-box">
-                        <label class="label-text"
-                          >Destination / hotel name</label
-                        >
+                        <label class="label-text">Destination / hotel name</label>
                         <div class="form-group">
                           <span class="la la-map-marker form-icon"></span>
-                          <input
-                            class="form-control"
-                            type="text"
-                            name="text"
-                            placeholder="Destination, hotel name"
-                          />
+                          <input class="form-control" type="text" name="destination" placeholder="Destination, hotel name" value="{{ request('destination') }}">
                         </div>
                       </div>
                       <div class="input-box">
                         <label class="label-text">Check in - Check out</label>
                         <div class="form-group">
                           <span class="la la-calendar form-icon"></span>
-                          <input
-                            class="date-range form-control"
-                            type="text"
-                            name="daterange"
-                          />
+                          <input class="date-range form-control" type="text" name="daterange" value="{{ request('daterange') }}">
+                        </div>
+                      </div>
+                      
+                      <div class="sidebar-widget-item">
+                        <div class="qty-box mb-2 d-flex align-items-center justify-content-between">
+                          <label class="font-size-16">Rooms</label>
+                          <div class="qtyBtn d-flex align-items-center">
+                            <input type="number" name="rooms" value="{{ request('rooms', 1) }}" min="1" class="form-control" style="width: 60px; text-align: center;">
+                          </div>
+                        </div>
+                        <div class="qty-box mb-2 d-flex align-items-center justify-content-between">
+                          <label class="font-size-16">Adults</label>
+                          <div class="qtyBtn d-flex align-items-center">
+                            <input type="number" name="adults" value="{{ request('adults', 2) }}" min="1" class="form-control" style="width: 60px; text-align: center;">
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="btn-box pt-2">
+                        <button type="submit" class="theme-btn w-100">Search Now</button>
+                      </div>
+
+                      <hr class="mt-4 mb-4">
+
+                      <!-- Sort By Sidebar -->
+                      <div class="sidebar-widget">
+                        <h3 class="title stroke-shape">Sort Results</h3>
+                        <div class="sidebar-category">
+                          <div class="custom-radio">
+                            <input type="radio" name="sort_radio" id="sort_def" value="default" {{ request('sort', 'default') == 'default' ? 'checked' : '' }} onchange="syncSortSidebar(this.value)">
+                            <label for="sort_def" class="ms-2">Default</label>
+                          </div>
+                          <div class="custom-radio">
+                            <input type="radio" name="sort_radio" id="sort_pa" value="price_asc" {{ request('sort') == 'price_asc' ? 'checked' : '' }} onchange="syncSortSidebar(this.value)">
+                            <label for="sort_pa" class="ms-2">Price: Low to High</label>
+                          </div>
+                          <div class="custom-radio">
+                            <input type="radio" name="sort_radio" id="sort_pd" value="price_desc" {{ request('sort') == 'price_desc' ? 'checked' : '' }} onchange="syncSortSidebar(this.value)">
+                            <label for="sort_pd" class="ms-2">Price: High to Low</label>
+                          </div>
+                          <div class="custom-radio">
+                            <input type="radio" name="sort_radio" id="sort_sd" value="star_desc" {{ request('sort') == 'star_desc' ? 'checked' : '' }} onchange="syncSortSidebar(this.value)">
+                            <label for="sort_sd" class="ms-2">Star Rating: High to Low</label>
+                          </div>
+                          <div class="custom-radio">
+                            <input type="radio" name="sort_radio" id="sort_sa" value="star_asc" {{ request('sort') == 'star_asc' ? 'checked' : '' }} onchange="syncSortSidebar(this.value)">
+                            <label for="sort_sa" class="ms-2">Star Rating: Low to High</label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <hr class="mt-4 mb-4">
+
+                      <!-- Filter by Price -->
+                      <div class="sidebar-widget">
+                        <h3 class="title stroke-shape">Filter by Price</h3>
+                        <div class="sidebar-price-range">
+                          <div class="main-search-input-item">
+                            <div class="price-slider-amount padding-bottom-20px">
+                              <label for="amount2" class="filter__label">Price:</label>
+                              <input type="text" id="amount2" class="amounts" readonly style="border:0; color:#f6931f; font-weight:bold;">
+                            </div>
+                            <div id="slider-range2"></div>
+                          </div>
+                          <div class="btn-box pt-4">
+                            <button class="theme-btn theme-btn-small theme-btn-transparent" type="button" onclick="applyFilters()">Apply</button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="sidebar-widget">
+                        <h3 class="title stroke-shape">Filter by Rating</h3>
+                        <div class="sidebar-review">
+                          @foreach(range(5, 1) as $star)
+                          <div class="custom-checkbox">
+                            <input type="checkbox" class="form-check-input" id="star{{ $star }}" name="stars[]" value="{{ $star }}" {{ in_array($star, request('stars', [])) ? 'checked' : '' }} onchange="this.form.submit()">
+                            <label for="star{{ $star }}">
+                              <span class="ratings d-flex align-items-center">
+                                @for($i = 0; $i < $star; $i++) <i class="la la-star"></i> @endfor
+                                @for($i = $star; $i < 5; $i++) <i class="la la-star-o"></i> @endfor
+                              </span>
+                            </label>
+                          </div>
+                          @endforeach
+                        </div>
+                      </div>
+
+                      <div class="sidebar-widget">
+                        <h3 class="title stroke-shape">Review Score</h3>
+                        <div class="sidebar-category">
+                          <div class="custom-checkbox">
+                            <input type="checkbox" class="form-check-input" id="r_exc" name="review_score[]" value="9" {{ in_array(9, request('review_score', [])) ? 'checked' : '' }} onchange="this.form.submit()">
+                            <label for="r_exc">Excellent (9+)</label>
+                          </div>
+                          <div class="custom-checkbox">
+                            <input type="checkbox" class="form-check-input" id="r_vg" name="review_score[]" value="8" {{ in_array(8, request('review_score', [])) ? 'checked' : '' }} onchange="this.form.submit()">
+                            <label for="r_vg">Very Good (8+)</label>
+                          </div>
+                          <div class="custom-checkbox">
+                            <input type="checkbox" class="form-check-input" id="r_g" name="review_score[]" value="7" {{ in_array(7, request('review_score', [])) ? 'checked' : '' }} onchange="this.form.submit()">
+                            <label for="r_g">Good (7+)</label>
+                          </div>
                         </div>
                       </div>
                     </form>
                   </div>
                 </div>
-                <!-- end sidebar-widget-item -->
-                <div class="sidebar-widget-item">
-                  <div
-                    class="qty-box mb-2 d-flex align-items-center justify-content-between"
-                  >
-                    <label class="font-size-16">Rooms</label>
-                    <div class="qtyBtn d-flex align-items-center">
-                      <div class="qtyDec">
-                        <i class="la la-minus"></i>
-                      </div>
-                      <input type="text" name="qtyInput" value="0" />
-                      <div class="qtyInc">
-                        <i class="la la-plus"></i>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- end qty-box -->
-                  <div
-                    class="qty-box mb-2 d-flex align-items-center justify-content-between"
-                  >
-                    <label class="font-size-16">Adults <span>18+</span></label>
-                    <div class="qtyBtn d-flex align-items-center">
-                      <div class="qtyDec">
-                        <i class="la la-minus"></i>
-                      </div>
-                      <input type="text" name="qtyInput" value="0" />
-                      <div class="qtyInc">
-                        <i class="la la-plus"></i>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- end qty-box -->
-                  <div
-                    class="qty-box mb-2 d-flex align-items-center justify-content-between"
-                  >
-                    <label class="font-size-16"
-                      >Children <span>2-12 years old</span></label
-                    >
-                    <div class="qtyBtn d-flex align-items-center">
-                      <div class="qtyDec">
-                        <i class="la la-minus"></i>
-                      </div>
-                      <input type="text" name="qtyInput" value="0" />
-                      <div class="qtyInc">
-                        <i class="la la-plus"></i>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- end qty-box -->
-                </div>
-                <!-- end sidebar-widget-item -->
-                <div class="btn-box pt-2">
-                  <a href="hotel-search-result.html" class="theme-btn"
-                    >Search Now</a
-                  >
-                </div>
               </div>
-              <!-- end sidebar-widget -->
-              <div class="sidebar-widget">
-                <h3 class="title stroke-shape">Filter by Price</h3>
-                <div class="sidebar-price-range">
-                  <div class="main-search-input-item">
-                    <div class="price-slider-amount padding-bottom-20px">
-                      <label for="amount2" class="filter__label">Price:</label>
-                      <input type="text" id="amount2" class="amounts" />
-                    </div>
-                    <!-- end price-slider-amount -->
-                    <div id="slider-range2"></div>
-                    <!-- end slider-range -->
-                  </div>
-                  <!-- end main-search-input-item -->
-                  <div class="btn-box pt-4">
-                    <button
-                      class="theme-btn theme-btn-small theme-btn-transparent"
-                      type="button"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <!-- end sidebar-widget -->
-              <div class="sidebar-widget">
-                <h3 class="title stroke-shape">Review Score</h3>
-                <div class="sidebar-category">
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="r6" />
-                    <label for="r6">Excellent</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="r7" />
-                    <label for="r7">Very Good</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="r8" />
-                    <label for="r8">Average</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="r9" />
-                    <label for="r9">Poor</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="r10" />
-                    <label for="r10">Terrible</label>
-                  </div>
-                </div>
-              </div>
-              <!-- end sidebar-widget -->
-              <div class="sidebar-widget">
-                <h3 class="title stroke-shape">Filter by Rating</h3>
-                <div class="sidebar-review">
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="s1" />
-                    <label for="s1">
-                      <span class="ratings d-flex align-items-center">
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <span class="color-text-3 font-size-13 ms-1"
-                          >(55.590)</span
-                        >
-                      </span>
-                    </label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="s2" />
-                    <label for="s2">
-                      <span class="ratings d-flex align-items-center">
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star-o"></i>
-                        <span class="color-text-3 font-size-13 ms-1"
-                          >(40.590)</span
-                        >
-                      </span>
-                    </label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="s3" />
-                    <label for="s3">
-                      <span class="ratings d-flex align-items-center">
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star-o"></i>
-                        <i class="la la-star-o"></i>
-                        <span class="color-text-3 font-size-13 ms-1"
-                          >(23.590)</span
-                        >
-                      </span>
-                    </label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="s4" />
-                    <label for="s4">
-                      <span class="ratings d-flex align-items-center">
-                        <i class="la la-star"></i>
-                        <i class="la la-star"></i>
-                        <i class="la la-star-o"></i>
-                        <i class="la la-star-o"></i>
-                        <i class="la la-star-o"></i>
-                        <span class="color-text-3 font-size-13 ms-1"
-                          >(12.590)</span
-                        >
-                      </span>
-                    </label>
-                  </div>
-                  <div class="custom-checkbox mb-0">
-                    <input type="checkbox" class="form-check-input" id="s5" />
-                    <label for="s5">
-                      <span class="ratings d-flex align-items-center">
-                        <i class="la la-star"></i>
-                        <i class="la la-star-o"></i>
-                        <i class="la la-star-o"></i>
-                        <i class="la la-star-o"></i>
-                        <i class="la la-star-o"></i>
-                        <span class="color-text-3 font-size-13 ms-1"
-                          >(590)</span
-                        >
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <!-- end sidebar-widget -->
-              <div class="sidebar-widget">
-                <h3 class="title stroke-shape">Facilities</h3>
-                <div class="sidebar-category">
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="f1" />
-                    <label for="f1">Air Conditioning</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input
-                      type="checkbox"
-                      class="form-check-input"
-                      id="chb12"
-                    />
-                    <label for="chb12">Airport Transport</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="f2" />
-                    <label for="f2">Fitness Center</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="f3" />
-                    <label for="f3">Flat Tv</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="f4" />
-                    <label for="f4">Heater</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="f5" />
-                    <label for="f5">Internet – Wifi</label>
-                  </div>
-                  <div class="collapse" id="facilitiesMenu">
-                    <div class="custom-checkbox">
-                      <input type="checkbox" class="form-check-input" id="f6" />
-                      <label for="f6">Parking</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input type="checkbox" class="form-check-input" id="f7" />
-                      <label for="f7">Pool</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input type="checkbox" class="form-check-input" id="f8" />
-                      <label for="f8">Restaurant</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input type="checkbox" class="form-check-input" id="f9" />
-                      <label for="f9">Smoking Room</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="f10"
-                      />
-                      <label for="f10">Spa &amp; Sauna</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="f11"
-                      />
-                      <label for="f11">Washer &amp; Dryer</label>
-                    </div>
-                  </div>
-                  <a
-                    class="btn-text"
-                    data-bs-toggle="collapse"
-                    href="#facilitiesMenu"
-                    role="button"
-                    aria-expanded="false"
-                    aria-controls="facilitiesMenu"
-                  >
-                    <span class="show-more"
-                      >Show More <i class="la la-angle-down"></i
-                    ></span>
-                    <span class="show-less"
-                      >Show Less <i class="la la-angle-up"></i
-                    ></span>
-                  </a>
-                </div>
-              </div>
-              <!-- end sidebar-widget -->
-              <div class="sidebar-widget">
-                <h3 class="title stroke-shape">Hotel Theme</h3>
-                <div class="sidebar-category">
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="ht1" />
-                    <label for="ht1">Best value</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="ht2" />
-                    <label for="ht2">Boutique</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="ht3" />
-                    <label for="ht3">Budget</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="ht4" />
-                    <label for="ht4">Business</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="ht5" />
-                    <label for="ht5">Charming</label>
-                  </div>
-                  <div class="custom-checkbox">
-                    <input type="checkbox" class="form-check-input" id="ht6" />
-                    <label for="ht6">Classic</label>
-                  </div>
-                  <div class="collapse" id="hotelThemeMenu">
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht7"
-                      />
-                      <label for="ht7">Green</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht8"
-                      />
-                      <label for="ht8">Luxury</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht9"
-                      />
-                      <label for="ht9">Mid-range</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht10"
-                      />
-                      <label for="ht10">Party</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht11"
-                      />
-                      <label for="ht11">Quaint</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht12"
-                      />
-                      <label for="ht12">Quite</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht14"
-                      />
-                      <label for="ht14">Romantic</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht15"
-                      />
-                      <label for="ht15">Standard</label>
-                    </div>
-                    <div class="custom-checkbox">
-                      <input
-                        type="checkbox"
-                        class="form-check-input"
-                        id="ht16"
-                      />
-                      <label for="ht16">Trendy</label>
-                    </div>
-                  </div>
-                  <a
-                    class="btn-text"
-                    data-bs-toggle="collapse"
-                    href="#hotelThemeMenu"
-                    role="button"
-                    aria-expanded="false"
-                    aria-controls="hotelThemeMenu"
-                  >
-                    <span class="show-more"
-                      >Show More <i class="la la-angle-down"></i
-                    ></span>
-                    <span class="show-less"
-                      >Show Less <i class="la la-angle-up"></i
-                    ></span>
-                  </a>
-                </div>
-              </div>
-              <!-- end sidebar-widget -->
             </div>
-            <!-- end sidebar -->
           </div>
-          <!-- end col-lg-4 -->
+
           <div class="col-lg-8">
+            @forelse($hotels as $hotel)
             <div class="card-item card-item-list">
               <div class="card-img">
-                <a href="hotel-single.html" class="d-block">
-                  <img src="{{ asset('frontend/images/img1.jpg') }}" alt="hotel-img" />
+                <a href="#" class="d-block">
+                  @if($hotel->agoda_data && isset($hotel->agoda_data['imageURL']))
+                    <img src="{{ $hotel->agoda_data['imageURL'] }}" alt="{{ $hotel->title }}">
+                  @elseif($hotel->mainImage)
+                    <img src="{{ asset('storage/' . $hotel->mainImage->file_path) }}" alt="{{ $hotel->title }}">
+                  @else
+                    <img src="{{ asset('frontend/images/img1.jpg') }}" alt="hotel-img">
+                  @endif
                 </a>
-                <span class="badge">Bestseller</span>
-                <div
-                  class="add-to-wishlist icon-element"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="Bookmark"
-                >
-                  <i class="la la-heart-o"></i>
-                </div>
+                @if($hotel->is_featured)
+                  <span class="badge">Featured</span>
+                @endif
               </div>
               <div class="card-body">
                 <h3 class="card-title">
-                  <a href="hotel-single.html">The Millennium Hilton New York</a>
+                  <a href="#">{{ $hotel->title }}</a>
                 </h3>
-                <p class="card-meta">124 E Huron St, New york</p>
-                <div class="card-rating">
-                  <span class="badge text-white">4.4/5</span>
-                  <span class="review__text">Average</span>
-                  <span class="rating__text">(30 Reviews)</span>
-                </div>
-                <div
-                  class="card-price d-flex align-items-center justify-content-between"
-                >
-                  <p>
-                    <span class="price__from">From</span>
-                    <span class="price__num">$88.00</span>
-                    <span class="price__text">Per night</span>
-                  </p>
-                  <a href="hotel-single.html" class="btn-text"
-                    >See details<i class="la la-angle-right"></i
-                  ></a>
-                </div>
-              </div>
-            </div>
-            <!-- end card-item -->
-            <div class="card-item card-item-list">
-              <div class="card-img">
-                <a href="hotel-single.html" class="d-block">
-                  <img src="{{ asset('frontend/images/img2.jpg') }}" alt="hotel-img" />
-                </a>
-                <div
-                  class="add-to-wishlist icon-element"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="Bookmark"
-                >
-                  <i class="la la-heart-o"></i>
-                </div>
-              </div>
-              <div class="card-body">
-                <h3 class="card-title">
-                  <a href="hotel-single.html">Best Western Grant Park Hotel</a>
-                </h3>
-                <p class="card-meta">124 E Huron St, Chicago</p>
-                <div class="card-rating">
-                  <span class="badge text-white">4.4/5</span>
-                  <span class="review__text">Average</span>
-                  <span class="rating__text">(30 Reviews)</span>
-                </div>
-                <div
-                  class="card-price d-flex align-items-center justify-content-between"
-                >
-                  <p>
-                    <span class="price__from">From</span>
-                    <span class="price__num">$58.00</span>
-                    <span class="price__text">Per night</span>
-                  </p>
-                  <a href="hotel-single.html" class="btn-text"
-                    >See details<i class="la la-angle-right"></i
-                  ></a>
-                </div>
-              </div>
-            </div>
-            <!-- end card-item -->
-            <div class="card-item card-item-list">
-              <div class="card-img">
-                <a href="hotel-single.html" class="d-block">
-                  <img src="{{ asset('frontend/images/img3.jpg') }}" alt="hotel-img" />
-                </a>
-                <span class="badge">Featured</span>
-                <div
-                  class="add-to-wishlist icon-element"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="Bookmark"
-                >
-                  <i class="la la-heart-o"></i>
-                </div>
-              </div>
-              <div class="card-body">
-                <h3 class="card-title">
-                  <a href="hotel-single.html"
-                    >Hyatt Regency Maui Resort & Spa</a
-                  >
-                </h3>
-                <p class="card-meta">200 Nohea Kai Dr, Lahaina, HI</p>
-                <div class="card-rating">
-                  <span class="badge text-white">4.4/5</span>
-                  <span class="review__text">Average</span>
-                  <span class="rating__text">(30 Reviews)</span>
-                </div>
-                <div
-                  class="card-price d-flex align-items-center justify-content-between"
-                >
-                  <p>
-                    <span class="price__from">From</span>
-                    <span class="price__num">$88.00</span>
-                    <span class="price__text">Per night</span>
-                  </p>
-                  <a href="hotel-single.html" class="btn-text"
-                    >See details<i class="la la-angle-right"></i
-                  ></a>
-                </div>
-              </div>
-            </div>
-            <!-- end card-item -->
-            <div class="card-item card-item-list">
-              <div class="card-img">
-                <a href="hotel-single.html" class="d-block">
-                  <img src="{{ asset('frontend/images/img4.jpg') }}" alt="hotel-img" />
-                </a>
-                <span class="badge">Popular</span>
-                <div
-                  class="add-to-wishlist icon-element"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="Bookmark"
-                >
-                  <i class="la la-heart-o"></i>
-                </div>
-              </div>
-              <div class="card-body">
-                <h3 class="card-title">
-                  <a href="hotel-single.html"
-                    >Four Seasons Resort Maui at Wailea</a
-                  >
-                </h3>
-                <p class="card-meta">3900 Wailea Alanui Drive, Kihei, HI</p>
-                <div class="card-rating">
-                  <span class="badge text-white">4.4/5</span>
-                  <span class="review__text">Average</span>
-                  <span class="rating__text">(30 Reviews)</span>
-                </div>
-                <div
-                  class="card-price d-flex align-items-center justify-content-between"
-                >
-                  <p>
-                    <span class="price__from">From</span>
-                    <span class="price__num">$88.00</span>
-                    <span class="price__text">Per night</span>
-                  </p>
-                  <a href="hotel-single.html" class="btn-text"
-                    >See details<i class="la la-angle-right"></i
-                  ></a>
-                </div>
-              </div>
-            </div>
-            <!-- end card-item -->
-            <div class="card-item card-item-list">
-              <div class="card-img">
-                <a href="hotel-single.html" class="d-block">
-                  <img src="{{ asset('frontend/images/img5.jpg') }}" alt="hotel-img" />
-                </a>
-                <div
-                  class="add-to-wishlist icon-element"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="Bookmark"
-                >
-                  <i class="la la-heart-o"></i>
-                </div>
-              </div>
-              <div class="card-body">
-                <h3 class="card-title">
-                  <a href="hotel-single.html">Ibis Styles London Heathrow</a>
-                </h3>
-                <p class="card-meta">272 Bath Road, Harlington, England</p>
-                <div class="card-rating">
-                  <span class="badge text-white">4.4/5</span>
-                  <span class="review__text">Average</span>
-                  <span class="rating__text">(30 Reviews)</span>
-                </div>
-                <div
-                  class="card-price d-flex align-items-center justify-content-between"
-                >
-                  <p>
-                    <span class="price__from">From</span>
-                    <span class="price__num">$88.00</span>
-                    <span class="price__text">Per night</span>
-                  </p>
-                  <a href="hotel-single.html" class="btn-text"
-                    >See details<i class="la la-angle-right"></i
-                  ></a>
-                </div>
-              </div>
-            </div>
-            <!-- end card-item -->
-            <div class="card-item card-item-list">
-              <div class="card-img">
-                <a href="hotel-single.html" class="d-block">
-                  <img src="{{ asset('frontend/images/img6.jpg') }}" alt="hotel-img" />
-                </a>
-                <div
-                  class="add-to-wishlist icon-element"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="Bookmark"
-                >
-                  <i class="la la-heart-o"></i>
-                </div>
-              </div>
-              <div class="card-body">
-                <h3 class="card-title">
-                  <a href="hotel-single.html"
-                    >Hotel Europe Saint Severin Paris</a
-                  >
-                </h3>
-                <p class="card-meta">38-40 Rue Saint Séverin, Paris, Paris</p>
-                <div class="card-rating">
-                  <span class="badge text-white">4.4/5</span>
-                  <span class="review__text">Average</span>
-                  <span class="rating__text">(30 Reviews)</span>
-                </div>
-                <div
-                  class="card-price d-flex align-items-center justify-content-between"
-                >
-                  <p>
-                    <span class="price__from">From</span>
-                    <span class="price__num">$88.00</span>
-                    <span class="price__text">Per night</span>
-                  </p>
-                  <a href="hotel-single.html" class="btn-text"
-                    >See details<i class="la la-angle-right"></i
-                  ></a>
-                </div>
-              </div>
-            </div>
-            <!-- end card-item -->
-            <div class="card-item card-item-list">
-              <div class="card-img">
-                <a href="hotel-single.html" class="d-block">
-                  <img src="{{ asset('frontend/images/img5.jpg') }}" alt="hotel-img" />
-                </a>
-                <div
-                  class="add-to-wishlist icon-element"
-                  data-bs-toggle="tooltip"
-                  data-placement="top"
-                  title="Bookmark"
-                >
-                  <i class="la la-heart-o"></i>
-                </div>
-              </div>
-              <div class="card-body">
-                <h3 class="card-title">
-                  <a href="hotel-single.html">Grand Desert Resort</a>
-                </h3>
-                <p class="card-meta">Delaware, USA</p>
-                <div class="card-rating">
-                  <span class="badge text-white">4.4/5</span>
-                  <span class="review__text">Average</span>
-                  <span class="rating__text">(30 Reviews)</span>
-                </div>
-                <div
-                  class="card-price d-flex align-items-center justify-content-between"
-                >
-                  <p>
-                    <span class="price__from">From</span>
-                    <span class="price__num">$88.00</span>
-                    <span class="price__text">Per night</span>
-                  </p>
-                  <a href="hotel-single.html" class="btn-text"
-                    >See details<i class="la la-angle-right"></i
-                  ></a>
-                </div>
-              </div>
-            </div>
-            <!-- end card-item -->
-          </div>
-          <!-- end col-lg-8 -->
-        </div>
-        <!-- end row -->
-        <div class="row">
-          <div class="col-lg-12">
-            <div class="btn-box mt-3 text-center">
-              <button type="button" class="theme-btn">
-                <i class="la la-refresh me-1"></i>Load More
-              </button>
-              <p class="font-size-13 pt-2">Showing 1 - 6 of 2224 Hotels</p>
-            </div>
-            <!-- end btn-box -->
-          </div>
-          <!-- end col-lg-12 -->
-        </div>
-        <!-- end row -->
-      </div>
-      <!-- end container -->
-    </section>
-    <!-- end card-area -->
-    <!-- ================================
-    END CARD AREA
-================================= -->
-
-    <div class="section-block"></div>
-
-    <!-- ================================
-    START INFO AREA
-================================= -->
-    <section class="info-area info-bg padding-top-90px padding-bottom-70px">
-      <div class="container">
-        <div class="row">
-          <div class="col-lg-4 responsive-column">
-            <a href="#" class="icon-box icon-layout-2 d-flex">
-              <div class="info-icon flex-shrink-0 bg-rgb text-color-2">
-                <i class="la la-phone"></i>
-              </div>
-              <!-- end info-icon-->
-              <div class="info-content">
-                <h4 class="info__title">Need Help? Contact us</h4>
-                <p class="info__desc">
-                  Lorem ipsum dolor sit amet, consectetur adipisicing
+                @php
+                    $hotelLatitude = data_get($hotel->agoda_data, 'latitude', $hotel->map_lat);
+                    $hotelLongitude = data_get($hotel->agoda_data, 'longitude', $hotel->map_lng);
+                    $displayAddress = trim($hotel->address . ($hotel->location ? ', ' . $hotel->location->name : ''));
+                    if (empty($displayAddress) && $hotelLatitude && $hotelLongitude) {
+                        $displayAddress = "Location: $hotelLatitude, $hotelLongitude";
+                    }
+                @endphp
+                <p class="card-meta hotel-address"
+                   data-lat="{{ $hotelLatitude }}"
+                   data-lng="{{ $hotelLongitude }}"
+                   data-address="{{ $displayAddress }}">
+                    <i class="la la-map-marker me-2" style="color: #2563eb;"></i>
+                    {{ $displayAddress ?: 'Address not available' }}
                 </p>
-              </div>
-              <!-- end info-content --> </a
-            ><!-- end icon-box -->
-          </div>
-          <!-- end col-lg-4 -->
-          <div class="col-lg-4 responsive-column">
-            <a href="#" class="icon-box icon-layout-2 d-flex">
-              <div class="info-icon flex-shrink-0 bg-rgb-2 text-color-3">
-                <i class="la la-money"></i>
-              </div>
-              <!-- end info-icon-->
-              <div class="info-content">
-                <h4 class="info__title">Payments</h4>
-                <p class="info__desc">
-                  Lorem ipsum dolor sit amet, consectetur adipisicing
+                @if($hotelLatitude && $hotelLongitude)
+                <p class="card-meta" style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+                    <i class="la la-location-arrow me-1"></i>
+                    {{ number_format($hotelLatitude, 4) }}, {{ number_format($hotelLongitude, 4) }}
+                    <a href="https://www.google.com/maps/search/?api=1&query={{ $hotelLatitude }},{{ $hotelLongitude }}" 
+                       target="_blank" 
+                       class="btn-text text-primary ms-2" 
+                       style="font-size: 12px; text-decoration: none;">
+                        <i class="la la-map-o"></i> View on Map
+                    </a>
                 </p>
-              </div>
-              <!-- end info-content --> </a
-            ><!-- end icon-box -->
-          </div>
-          <!-- end col-lg-4 -->
-          <div class="col-lg-4 responsive-column">
-            <a href="#" class="icon-box icon-layout-2 d-flex">
-              <div class="info-icon flex-shrink-0 bg-rgb-3 text-color-4">
-                <i class="la la-times"></i>
-              </div>
-              <!-- end info-icon-->
-              <div class="info-content">
-                <h4 class="info__title">Cancel Policy</h4>
-                <p class="info__desc">
-                  Lorem ipsum dolor sit amet, consectetur adipisicing
-                </p>
-              </div>
-              <!-- end info-content --> </a
-            ><!-- end icon-box -->
-          </div>
-          <!-- end col-lg-4 -->
-        </div>
-        <!-- end row -->
-      </div>
-      <!-- end container -->
-    </section>
-    <!-- end info-area -->
-    <!-- ================================
-    END INFO AREA
-================================= -->
-
-    <!-- ================================
-    START CTA AREA
-================================= -->
-    <section class="cta-area subscriber-area section-bg-2 padding-top-60px padding-bottom-60px">
-      <div class="container">
-        <div class="row align-items-center">
-          <div class="col-lg-7">
-            <div class="section-heading">
-              <h2 class="sec__title font-size-30 text-white">
-                Subscribe to see Secret Deals
-              </h2>
-            </div>
-            <!-- end section-heading -->
-          </div>
-          <!-- end col-lg-7 -->
-          <div class="col-lg-5">
-            <div class="subscriber-box">
-              <div class="contact-form-action">
-                <form action="#">
-                  <div class="input-box">
-                    <label class="label-text text-white"
-                      >Enter email address</label
-                    >
-                    <div class="form-group mb-0">
-                      <span class="la la-envelope form-icon"></span>
-                      <input
-                        class="form-control"
-                        type="email"
-                        name="email"
-                        placeholder="Email address"
-                      />
-                      <button
-                        class="theme-btn theme-btn-small submit-btn"
-                        type="submit"
-                      >
-                        Subscribe
-                      </button>
-                      <span class="font-size-14 pt-1 text-white-50"
-                        ><i class="la la-lock me-1"></i>Don't worry your
-                        information is safe with us.</span
-                      >
+                @endif
+                <div class="card-rating">
+                  <span class="badge text-white">{{ $hotel->star_rate }}/5</span>
+                  <span class="review__text">Rating</span>
+                </div>
+                <div class="card-price d-flex align-items-center justify-content-between">
+                  <p>
+                    <span class="price__from">From</span>
+                    <span class="price__num">${{ number_format($hotel->price, 2) }}</span>
+                    <span class="price__text">Per night</span>
+                  </p>
+                  @if($hotel->agoda_data && isset($hotel->agoda_data['landingURL']))
+                    <div class="d-flex align-items-center">
+                        <button type="button" class="btn-text me-3" onclick="showHotelDetail({{ json_encode($hotel->agoda_data) }}, '{{ addslashes($hotel->title) }}', '{{ addslashes($displayAddress) }}', {{ $hotelLatitude ?: 'null' }}, {{ $hotelLongitude ?: 'null' }})">More Details<i class="la la-angle-right"></i></button>
+                        <a href="{{ $hotel->agoda_data['landingURL'] }}" target="_blank" class="theme-btn theme-btn-small">Book on Agoda</a>
                     </div>
-                  </div>
-                </form>
+                  @else
+                    <a href="#" class="btn-text">See details<i class="la la-angle-right"></i></a>
+                  @endif
+                </div>
               </div>
             </div>
-            <!-- end section-heading -->
+            @empty
+            <div class="alert alert-info">No hotels found matching your criteria.</div>
+            @endforelse
+
+            <!-- Hotel Detail Modal -->
+            <div class="modal fade" id="hotelDetailModal" tabindex="-1" aria-labelledby="hotelDetailModalLabel" aria-hidden="true">
+              <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title" id="hotelDetailModalLabel">Hotel Details</h5>
+                    <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body" id="hotel-detail-content">
+                    <!-- Dynamic content here -->
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="theme-btn theme-btn-small" data-dismiss="modal">Close</button>
+                    <a href="#" id="modal-book-btn" target="_blank" class="theme-btn theme-btn-small">Book Now</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-lg-12">
+                <div class="btn-box mt-3 text-center">
+                  {{ $hotels->appends(request()->query())->links() }}
+                </div>
+              </div>
+            </div>
           </div>
-          <!-- end col-lg-5 -->
         </div>
-        <!-- end row -->
       </div>
-      <!-- end container -->
     </section>
-    <!-- end cta-area -->
-    <!-- ================================
-    END CTA AREA
-================================= -->
 @endsection
 
-
-
 @push('js')
+<script>
+// Global scope functions
+function applyFilters() {
+    var sortSelect = document.getElementById('sort_by');
+    if (sortSelect) {
+        document.getElementById('hidden_sort').value = sortSelect.value;
+    }
+    document.getElementById('filterForm').submit();
+}
 
+function syncSortSidebar(value) {
+    var sortSelect = document.getElementById('sort_by');
+    if (sortSelect) {
+        sortSelect.value = value;
+    }
+    document.getElementById('hidden_sort').value = value;
+    document.getElementById('filterForm').submit();
+}
+
+// Reverse geocode coordinates to a human-friendly address (OpenStreetMap Nominatim)
+async function getLocationFromCoordinates(lat, lon) {
+    if (!lat || !lon) {
+        return null;
+    }
+
+    try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+        if (data && data.address) {
+            const city = data.address.city || data.address.town || data.address.village || data.address.suburb || data.address.county || '';
+            const country = data.address.country || '';
+            return {
+                name: city || 'Unknown location',
+                fullAddress: data.display_name || '',
+                city,
+                country,
+                area: data.address.suburb || data.address.neighbourhood || ''
+            };
+        }
+        return null;
+    } catch (error) {
+        console.error('Reverse geocoding error:', error);
+        return null;
+    }
+}
+
+async function showHotelDetail(data, title, address, latitude, longitude) {
+    const content = document.getElementById('hotel-detail-content');
+    const bookBtn = document.getElementById('modal-book-btn');
+    const modalTitle = document.getElementById('hotelDetailModalLabel');
+
+    modalTitle.textContent = title;
+
+    let displayAddress = address || data.address || '';
+    if ((!displayAddress || displayAddress.startsWith('Location:')) && latitude && longitude) {
+        try {
+            const location = await getLocationFromCoordinates(latitude, longitude);
+            if (location && location.fullAddress) {
+                displayAddress = location.fullAddress;
+            } else if (location && location.name) {
+                displayAddress = `${location.name}${location.area ? ', ' + location.area : ''}${location.country ? ', ' + location.country : ''}`;
+            }
+        } catch (err) {
+            console.warn('Could not reverse geocode hotel detail address:', err);
+        }
+    }
+
+    if (!displayAddress) {
+        displayAddress = 'Address not available';
+    }
+
+    let html = `
+        <div class="hotel-detail-wrapper">
+            <div class="row">
+                <div class="col-md-6">
+                    <img src="${data.imageURL || ''}" class="img-fluid rounded mb-3" alt="${title}">
+                </div>
+                <div class="col-md-6">
+                    <h4 class="mb-2">${title}</h4>
+                    <div class="ratings mb-2 text-warning">
+                        ${generateStars(data.starRating)}
+                    </div>
+                    <p class="mb-2"><i class="la la-map-marker me-1"></i> ${displayAddress}</p>
+                    ${data.latitude && data.longitude ? `
+                        <p class="mb-2">
+                            <a href="https://www.google.com/maps/search/?api=1&query=${data.latitude},${data.longitude}" target="_blank" class="btn-text text-primary">
+                                <i class="la la-map me-1"></i> View on Map
+                            </a>
+                        </p>
+                    ` : ''}
+                    <div class="price-info mb-3">
+                        <span class="h4 text-primary">${data.currency || 'USD'} ${data.dailyRate || 0}</span>
+                        <small class="text-muted"> / per night</small>
+                    </div>
+                    <div class="amenities mb-3">
+                        <span class="badge bg-light text-dark border me-2 p-2">
+                            <i class="la ${data.freeWifi ? 'la-wifi' : 'la-times-circle'}"></i> ${data.freeWifi ? 'Free WiFi' : 'No WiFi'}
+                        </span>
+                        <span class="badge bg-light text-dark border p-2">
+                            <i class="la ${data.includeBreakfast ? 'la-coffee' : 'la-times-circle'}"></i> ${data.includeBreakfast ? 'Breakfast Included' : 'No Breakfast'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-12">
+                    <h5>Review Score: <span class="badge bg-success">${data.reviewScore || 'N/A'}</span></h5>
+                    <p class="text-muted">Based on ${data.reviewCount || 0} reviews</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    content.innerHTML = html;
+    bookBtn.href = data.landingURL || '#';
+    
+    $('#hotelDetailModal').modal('show');
+}
+
+function generateStars(rating) {
+    let stars = '';
+    const fullStars = Math.floor(rating);
+    for (let i = 0; i < fullStars; i++) {
+        stars += '<i class="la la-star"></i>';
+    }
+    if (rating % 1 !== 0) {
+        stars += '<i class="la la-star-half-alt"></i>';
+    }
+    const emptyStars = 5 - Math.ceil(rating);
+    for (let i = 0; i < emptyStars; i++) {
+        stars += '<i class="la la-star-o"></i>';
+    }
+    return stars;
+}
+
+async function resolveHotelAddresses() {
+    const elements = document.querySelectorAll('.hotel-address');
+
+    for (const el of elements) {
+        const lat = el.getAttribute('data-lat');
+        const lng = el.getAttribute('data-lng');
+        const originalAddress = el.getAttribute('data-address') || '';
+
+        if (!lat || !lng || !originalAddress.startsWith('Location:')) {
+            continue;
+        }
+
+        try {
+            const location = await getLocationFromCoordinates(lat, lng);
+            let newAddress = originalAddress;
+            
+            if (location && location.fullAddress) {
+                newAddress = location.fullAddress;
+            } else if (location && location.name) {
+                newAddress = `${location.name}${location.area ? ', ' + location.area : ''}${location.country ? ', ' + location.country : ''}`;
+            }
+            
+            // Preserve the icon and update only the text
+            el.innerHTML = '<i class="la la-map-marker me-2" style="color: #2563eb;"></i>' + newAddress;
+        } catch (e) {
+            console.warn('Could not load reverse geocoded address', e);
+        }
+    }
+}
+
+// Resolve addresses as soon as DOM is ready, not waiting for full page load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', resolveHotelAddresses);
+} else {
+    resolveHotelAddresses();
+}
+
+$(document).ready(function() {
+  // Date range picker initialization with override
+  function initDatePickers() {
+    if ($('.date-range').length && typeof $.fn.daterangepicker === 'function') {
+      var daterangeInput = $('.date-range');
+      
+      // Destroy existing instance to clear conflicting state
+      try {
+          if (daterangeInput.data('daterangepicker')) {
+              daterangeInput.data('daterangepicker').remove();
+          }
+      } catch (e) { }
+
+      // Parse initial value if exists or set defaults
+      var start = moment();
+      var end = moment().add(1, 'days');
+      var val = daterangeInput.val();
+      
+      if (val && val.indexOf(' - ') > -1) {
+          var parts = val.split(' - ');
+          var p1 = moment(parts[0], 'DD/MM/YYYY');
+          var p2 = moment(parts[1], 'DD/MM/YYYY');
+          if (p1.isValid() && p2.isValid()) {
+              start = p1;
+              end = p2;
+          }
+      }
+
+      daterangeInput.daterangepicker({
+        opens: 'left',
+        minDate: moment(),
+        startDate: start,
+        endDate: end,
+        autoUpdateInput: true,
+        locale: {
+          format: 'DD/MM/YYYY',
+          separator: ' - '
+        }
+      });
+    }
+  }
+
+  // Functional Price Slider initialization
+  function initPriceSliders() {
+      var minVal = parseInt("{{ request('min_price', 0) }}");
+      var maxVal = parseInt("{{ request('max_price', 2000) }}");
+
+      if ($("#slider-range").length && $.fn.slider) {
+          $("#slider-range").slider({
+              range: true,
+              min: 0,
+              max: 2000,
+              values: [minVal, maxVal],
+              slide: function(event, ui) {
+                  $("#amount").val("$" + ui.values[0] + " - $" + ui.values[1]);
+                  $("#min_price").val(ui.values[0]);
+                  $("#max_price").val(ui.values[1]);
+                  $("#form_min_price").val(ui.values[0]);
+                  $("#form_max_price").val(ui.values[1]);
+              }
+          });
+          $("#amount").val("$" + $("#slider-range").slider("values", 0) + " - $" + $("#slider-range").slider("values", 1));
+      }
+      
+      if ($("#slider-range2").length && $.fn.slider) {
+          $("#slider-range2").slider({
+              range: true,
+              min: 0,
+              max: 2000,
+              values: [minVal, maxVal],
+              slide: function(event, ui) {
+                  $("#amount2").val("$" + ui.values[0] + " - $" + ui.values[1]);
+                  $("#form_min_price").val(ui.values[0]);
+                  $("#form_max_price").val(ui.values[1]);
+              }
+          });
+          $("#amount2").val("$" + $("#slider-range2").slider("values", 0) + " - $" + $("#slider-range2").slider("values", 1));
+      }
+  }
+
+  // Use window load to ensure all libraries are ready
+  $(window).on('load', async function() {
+      setTimeout(async function() {
+          initDatePickers();
+          initPriceSliders();
+      }, 500);
+  });
+});
+</script>
 @endpush

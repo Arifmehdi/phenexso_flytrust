@@ -38,10 +38,14 @@ class Hotel extends Model
         'status',
         'create_user',
         'update_user',
+        'agoda_hotel_id',
+        'agoda_last_synced_at',
+        'agoda_data',
     ];
 
     protected $casts = [
         'gallery' => 'array', // Cast gallery to array for easier handling
+        'agoda_data' => 'array',
     ];
 
     /**
