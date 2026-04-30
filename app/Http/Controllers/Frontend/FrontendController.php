@@ -37,6 +37,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\OrderConfirmationEmail;
 use App\Models\Testimonial;
+use App\Models\UserDestination;
 
 class FrontendController extends Controller
 {
@@ -87,7 +88,38 @@ class FrontendController extends Controller
             ->select('featured_image','title','description','link')
             ->get();
 
-        return view('website.index', $data);  
+        // Get countries for hotel search dropdown (from user_destinations)
+        $countries = UserDestination::select('country')
+            ->distinct()
+            ->orderBy('country')
+            ->pluck('country');
+
+        // Get destination to country mapping for JS (destination => country)
+        // Only include destinations that exist in city ID config
+        $agodaCityIds = config('cities.agoda_city_ids', []);
+        $savedDestinationsCollection = UserDestination::select('destination_name', 'country')
+            ->distinct()
+            ->orderBy('destination_name')
+            ->get()
+            ->filter(function($item) use ($agodaCityIds) {
+                return isset($agodaCityIds[$item->destination_name]) || isset($agodaCityIds[strtolower($item->destination_name)]);
+            });
+
+        $savedDestinations = $savedDestinationsCollection->pluck('country', 'destination_name');
+
+        // Get country to default destination mapping (country => destination)
+        $countryDestinationMap = [];
+        foreach ($savedDestinations as $dest => $country) {
+            if (!isset($countryDestinationMap[$country])) {
+                $countryDestinationMap[$country] = $dest;
+            }
+        }
+
+        $data['countries'] = $countries;
+        $data['savedDestinations'] = $savedDestinations;
+        $data['countryDestinationMap'] = $countryDestinationMap;
+
+        return view('website.index', $data);
     }
 
     // For lazy loading products via AJAX

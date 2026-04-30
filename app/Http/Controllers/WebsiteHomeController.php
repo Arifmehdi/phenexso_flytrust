@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use App\User;
 use App\Models\Hotel;
+use App\Models\UserDestination;
 use Modules\Location\Models\LocationCategory;
 use Modules\Page\Models\Page;
 use Modules\News\Models\NewsCategory;
@@ -13,6 +14,7 @@ use Illuminate\Http\Request;
 use App\Services\AgodaService;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Http;
 
 class WebsiteHomeController extends Controller
 {
@@ -33,7 +35,25 @@ class WebsiteHomeController extends Controller
      */
     public function index()
     {
-        return view('website.index');
+        // This method is not currently used (FrontendController@index is used for homepage)
+        // But keeping it for consistency in case routes change
+        $countries = UserDestination::select('country')
+            ->distinct()
+            ->orderBy('country')
+            ->pluck('country');
+
+        $savedDestinations = UserDestination::select('destination_name', 'country')
+            ->distinct()
+            ->orderBy('destination_name')
+            ->get()
+            ->pluck('country', 'destination_name');
+
+        $destinationNames = UserDestination::select('destination_name')
+            ->distinct()
+            ->orderBy('destination_name')
+            ->pluck('destination_name');
+
+        return view('website.index', compact('countries', 'savedDestinations', 'destinationNames'));
     }
 
     public function flight()
@@ -123,9 +143,44 @@ class WebsiteHomeController extends Controller
                         $agodaId = $hotelData['hoteld'] ?? $hotelData['hotelId'] ?? null;
                         if (!$agodaId) continue;
 
+                        $latitude = $hotelData['latitude'] ?? null;
+                        $longitude = $hotelData['longitude'] ?? null;
                         $address = $hotelData['address'] ?? '';
-                        if (empty($address) && isset($hotelData['latitude']) && isset($hotelData['longitude'])) {
-                            $address = "Location: " . $hotelData['latitude'] . ", " . $hotelData['longitude'];
+
+                        // If no address but have coordinates, use coordinates as address
+                        if (empty($address) && $latitude && $longitude) {
+                            $address = "Location: $latitude, $longitude";
+                        }
+
+                        // Try to get country from coordinates if not already in address
+                        $country = null;
+                        if ($latitude && $longitude) {
+                            // Check if country is already in the agoda data
+                            if (isset($hotelData['country'])) {
+                                $country = $hotelData['country'];
+                            } else {
+                                // Try to extract country from address via reverse geocoding
+                                $country = $this->getCountryFromCoordinates($latitude, $longitude);
+                            }
+
+                            // Save to user_destinations table (only if country is found and lat/lng exist)
+                            if ($country && $latitude && $longitude) {
+                                try {
+                                    UserDestination::updateOrCreate(
+                                        [
+                                            'country' => $country,
+                                            'latitude' => $latitude,
+                                            'longitude' => $longitude,
+                                        ],
+                                        [
+                                            'destination_name' => $cityName,
+                                            'address' => $address,
+                                        ]
+                                    );
+                                } catch (\Exception $e) {
+                                    \Log::error("Failed to save user destination: " . $e->getMessage());
+                                }
+                            }
                         }
 
                         Hotel::updateOrCreate(
@@ -138,7 +193,13 @@ class WebsiteHomeController extends Controller
                                 'address' => $address,
                                 'status' => 'publish',
                                 'agoda_last_synced_at' => Carbon::now(),
-                                'agoda_data' => array_merge($hotelData, ['cityId' => $cityId, 'address' => $address]),
+                                'agoda_data' => array_merge($hotelData, [
+                                    'cityId' => $cityId,
+                                    'address' => $address,
+                                    'country' => $country,
+                                    'latitude' => $latitude,
+                                    'longitude' => $longitude
+                                ]),
                             ]
                         );
                     }
@@ -163,17 +224,26 @@ class WebsiteHomeController extends Controller
             });
         }
 
-        // 2. Price Filter
+        // 2. Country Filter (from saved destinations)
+        if ($request->has('country')) {
+            $query->where(function($q) use ($request) {
+                // Check if country exists in agoda_data JSON or in the extracted country field
+                $q->where('agoda_data->country', $request->country)
+                  ->orWhere('agoda_data->country', 'like', '%' . $request->country . '%');
+            });
+        }
+
+        // 3. Price Filter
         if ($request->has('min_price') && $request->has('max_price')) {
             $query->whereBetween('price', [$request->min_price, $request->max_price]);
         }
 
-        // 3. Star Rating Filter
+        // 4. Star Rating Filter
         if ($request->has('stars') && is_array($request->stars)) {
             $query->whereIn('star_rate', $request->stars);
         }
 
-        // 4. Review Score Filter (checking against agoda_data json)
+        // 5. Review Score Filter (checking against agoda_data json)
         if ($request->has('review_score') && is_array($request->review_score)) {
             $query->where(function($q) use ($request) {
                 foreach ($request->review_score as $score) {
@@ -182,7 +252,7 @@ class WebsiteHomeController extends Controller
             });
         }
 
-        // 5. Sorting
+        // 6. Sorting
         $sort = $request->input('sort', 'default');
         switch ($sort) {
             case 'price_asc':
@@ -203,8 +273,14 @@ class WebsiteHomeController extends Controller
         }
 
         $hotels = $query->with(['location', 'mainImage'])->paginate(12);
-        
-        return view('website.hotel', compact('hotels'));
+
+        // Get distinct countries from user_destinations for filter dropdown
+        $countries = UserDestination::select('country')
+            ->distinct()
+            ->orderBy('country')
+            ->pluck('country');
+
+        return view('website.hotel', compact('hotels', 'countries'));
     }
 
     public function visa()
@@ -230,5 +306,34 @@ class WebsiteHomeController extends Controller
     public function privacypolicy()
     {
         return view('website.privacy');
+    }
+
+    /**
+     * Get country name from latitude and longitude using reverse geocoding
+     */
+    private function getCountryFromCoordinates($lat, $lng)
+    {
+        try {
+            $response = Http::get('https://nominatim.openstreetmap.org/reverse', [
+                'format' => 'json',
+                'lat' => $lat,
+                'lon' => $lng,
+                'zoom' => 5,
+                'addressdetails' => 1,
+                'accept-language' => 'en', // Force English response
+                'user-agent' => 'flytrust-hotel-app'
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                if (isset($data['address']['country'])) {
+                    return $data['address']['country'];
+                }
+            }
+        } catch (\Exception $e) {
+            \Log::error('Reverse geocoding failed: ' . $e->getMessage());
+        }
+
+        return null;
     }
 }

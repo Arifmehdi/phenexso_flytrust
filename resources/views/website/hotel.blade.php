@@ -101,7 +101,7 @@
                         </div>
                       </div>
                       
-                      <div class="sidebar-widget-item">
+                      <!-- <div class="sidebar-widget-item">
                         <div class="qty-box mb-2 d-flex align-items-center justify-content-between">
                           <label class="font-size-16">Rooms</label>
                           <div class="qtyBtn d-flex align-items-center">
@@ -114,13 +114,31 @@
                             <input type="number" name="adults" value="{{ request('adults', 2) }}" min="1" class="form-control" style="width: 60px; text-align: center;">
                           </div>
                         </div>
-                      </div>
+                      </div> -->
 
                       <div class="btn-box pt-2">
                         <button type="submit" class="theme-btn w-100">Search Now</button>
                       </div>
 
                       <hr class="mt-4 mb-4">
+                      
+                      <div class="sidebar-widget">
+                        <h3 class="title stroke-shape">Country</h3>
+                        <div class="sidebar-category">
+                          @if($countries && $countries->count() > 0)
+                            <select class="form-control" name="country" onchange="this.form.submit()">
+                              <option value="">All Countries</option>
+                              @foreach($countries as $country)
+                                <option value="{{ $country }}" {{ request('country') == $country ? 'selected' : '' }}>
+                                  {{ $country }}
+                                </option>
+                              @endforeach
+                            </select>
+                          @else
+                            <p class="text-muted">No countries saved yet.</p>
+                          @endif
+                        </div>
+                      </div>
 
                       <!-- Sort By Sidebar -->
                       <div class="sidebar-widget">
@@ -167,6 +185,7 @@
                           </div>
                         </div>
                       </div>
+
 
                       <div class="sidebar-widget">
                         <h3 class="title stroke-shape">Filter by Rating</h3>
@@ -279,7 +298,13 @@
               </div>
             </div>
             @empty
-            <div class="alert alert-info">No hotels found matching your criteria.</div>
+            @if(request('country'))
+                <div class="alert alert-warning">
+                    No hotels found in <strong>{{ request('country') }}</strong>. Try selecting a different country or removing the filter.
+                </div>
+            @else
+                <div class="alert alert-info">No hotels found matching your criteria.</div>
+            @endif
             @endforelse
 
             <!-- Hotel Detail Modal -->

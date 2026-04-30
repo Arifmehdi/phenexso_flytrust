@@ -1,0 +1,355 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class AgodaService
+{
+    protected $endpoint;
+    protected $authorization;
+
+    public function __construct()
+    {
+        $this->endpoint = config('services.agoda.endpoint');
+        $siteId = config('services.agoda.site_id');
+        $apiKey = config('services.agoda.api_key');
+        $this->authorization = $siteId . ':' . $apiKey;
+        
+        Log::info('Agoda Service Initialized with Site ID: ' . $siteId);
+    }
+
+    public function getCityIdByName($name)
+    {
+        $cityIdMap = config('cities.agoda_city_ids', []);
+        
+        // Convert map keys to lowercase for case-insensitive lookup
+        $lowerMap = [];
+        foreach ($cityIdMap as $cityName => $id) {
+            $lowerMap[strtolower($cityName)] = $id;
+        }
+
+        $name = strtolower(trim($name));
+        return $lowerMap[$name] ?? null;
+    }
+
+    public function searchByCity(
+        $cityId, 
+        $checkInDate = null, 
+        $checkOutDate = null, 
+        $adults = 2, 
+        $children = 0,
+        $rooms = 1,
+        $currency = 'USD',
+        $language = 'en-us',
+        $maxResult = 20,
+        $childrenAges = []
+    ) {
+        // Set default dates if not provided
+        if (!$checkInDate) {
+            $checkInDate = now()->addDays(1)->format('Y-m-d');
+        }
+        if (!$checkOutDate) {
+            $checkOutDate = now()->addDays(2)->format('Y-m-d');
+        }
+
+        // Build occupancy
+        $occupancy = [
+            'numberOfAdult' => (int)$adults,
+            'numberOfChildren' => (int)$children
+        ];
+
+        // Add children ages if children > 0 and ages provided
+        if ($children > 0 && !empty($childrenAges)) {
+            $occupancy['childrenAges'] = $childrenAges;
+        }
+
+        $body = [
+            "criteria" => [
+                "additional" => [
+                    "currency" => $currency,
+                    "language" => $language,
+                    "maxResult" => (int)$maxResult,
+                    "discountOnly" => false,
+                    "minimumReviewScore" => 0,
+                    "minimumStarRating" => 0,
+                    "occupancy" => $occupancy,
+                    "sortBy" => "PriceAsc",
+                    "dailyRate" => [
+                        "maximum" => 10000,
+                        "minimum" => 1
+                    ]
+                ],
+                "checkInDate" => $checkInDate,
+                "checkOutDate" => $checkOutDate,
+                "cityId" => (int)$cityId
+            ]
+        ];
+
+        // Log request for debugging
+        Log::info('Agoda API Request:', $body);
+
+        try {
+            $response = Http::withHeaders([
+                'Authorization' => $this->authorization,
+                'Accept-Encoding' => 'gzip, deflate',
+                'Content-Type' => 'application/json'
+            ])->post($this->endpoint, $body);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                Log::info('Agoda API Response Success', ['count' => count($data['results'] ?? [])]);
+                return $data;
+            } else {
+                Log::error('Agoda API Error:', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                
+                return [
+                    'error' => [
+                        'id' => $response->status(),
+                        'message' => 'API request failed with status: ' . $response->status()
+                    ]
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Agoda API Exception: ' . $e->getMessage());
+            
+            return [
+                'error' => [
+                    'id' => 500,
+                    'message' => 'Connection error: ' . $e->getMessage()
+                ]
+            ];
+        }
+    }
+}
+
+
+here agoda hotel api sercice logic
+
+
+AGODA_ENDPOINT=http://affiliateapi7643.agoda.com/affiliateservice/lt_v1
+AGODA_SITE_ID=1954695
+AGODA_API_KEY=ca4c94b3-5900-4adc-9dfc-52e838a50c6c
+AGODA_CID=1954695
+
+api from .env file 
+
+
+    public function hotel(Request $request, AgodaService $agodaService)
+    {
+        $destination = $request->input('destination');
+        $cacheLimit = Carbon::now()->subMinutes(15);
+        
+        \Log::info('Hotel search initiated', ['destination' => $destination, 'params' => $request->all()]);
+
+        // Define default cities to sync if no destination is provided or to keep database fresh
+        $defaultCities = [
+            'Dhaka' => 9395,
+            'Bangkok' => 9395, // Note: PDF used 9395 for Bangkok too in examples
+            'Dubai' => 14545,
+            'Singapore' => 4064,
+            'Cox\'s Bazar' => 17188
+        ];
+
+        $citiesToSync = [];
+
+        if (!empty($destination)) {
+            $cityId = $agodaService->getCityIdByName($destination);
+            if ($cityId) {
+                $citiesToSync[$destination] = $cityId;
+            }
+        } else {
+            // If no destination, we check our default popular cities for refresh
+            foreach ($defaultCities as $name => $id) {
+                $citiesToSync[$name] = $id;
+            }
+        }
+
+        foreach ($citiesToSync as $cityName => $cityId) {
+            $isFresh = Hotel::where('agoda_hotel_id', '!=', null)
+                ->where('agoda_last_synced_at', '>', $cacheLimit)
+                ->where('agoda_data->cityId', $cityId)
+                ->exists();
+
+            if (!$isFresh) {
+                \Log::info("Syncing city: $cityName (ID: $cityId) from Agoda API");
+                
+                // Parse date range (Site default is DD/MM/YYYY)
+                $checkIn = now()->addDays(1)->format('Y-m-d');
+                $checkOut = now()->addDays(2)->format('Y-m-d');
+                
+                if ($request->input('daterange')) {
+                    $parts = explode(' - ', $request->input('daterange'));
+                    if (count($parts) == 2) {
+                        try {
+                            $checkIn = Carbon::createFromFormat('d/m/Y', trim($parts[0]))->format('Y-m-d');
+                            $checkOut = Carbon::createFromFormat('d/m/Y', trim($parts[1]))->format('Y-m-d');
+                        } catch (\Exception $e) {
+                            try {
+                                $checkIn = Carbon::parse(trim($parts[0]))->format('Y-m-d');
+                                $checkOut = Carbon::parse(trim($parts[1]))->format('Y-m-d');
+                            } catch (\Exception $e2) {
+                                \Log::error("Date parsing failed: " . $request->input('daterange'));
+                            }
+                        }
+                    }
+                }
+
+                $data = $agodaService->searchByCity(
+                    $cityId,
+                    $checkIn,
+                    $checkOut,
+                    $request->input('adults', 2),
+                    $request->input('children', 0),
+                    $request->input('rooms', 1),
+                    'USD',
+                    'en-us',
+                    20 
+                );
+
+                if (isset($data['results']) && is_array($data['results'])) {
+                    foreach ($data['results'] as $hotelData) {
+                        $agodaId = $hotelData['hoteld'] ?? $hotelData['hotelId'] ?? null;
+                        if (!$agodaId) continue;
+
+                        $address = $hotelData['address'] ?? '';
+                        if (empty($address) && isset($hotelData['latitude']) && isset($hotelData['longitude'])) {
+                            $address = "Location: " . $hotelData['latitude'] . ", " . $hotelData['longitude'];
+                        }
+
+                        Hotel::updateOrCreate(
+                            ['agoda_hotel_id' => $agodaId],
+                            [
+                                'title' => $hotelData['hotelName'] ?? 'Agoda Hotel',
+                                'slug' => Str::slug($hotelData['hotelName'] ?? 'agoda-hotel') . '-' . $agodaId,
+                                'star_rate' => $hotelData['starRating'] ?? 0,
+                                'price' => $hotelData['dailyRate'] ?? 0,
+                                'address' => $address,
+                                'status' => 'publish',
+                                'agoda_last_synced_at' => Carbon::now(),
+                                'agoda_data' => array_merge($hotelData, ['cityId' => $cityId, 'address' => $address]),
+                            ]
+                        );
+                    }
+                    \Log::info("Successfully synced $cityName.");
+                }
+            } else {
+                \Log::info("Data for $cityName is fresh in database.");
+            }
+        }
+
+        // Final query to display hotels
+        $query = Hotel::where('status', 'publish');
+
+        // 1. Destination Filter
+        if (!empty($destination)) {
+            $query->where(function($q) use ($destination) {
+                $q->where('title', 'like', '%' . $destination . '%')
+                  ->orWhere('address', 'like', '%' . $destination . '%')
+                  ->orWhereHas('location', function($loc) use ($destination) {
+                      $loc->where('name', 'like', '%' . $destination . '%');
+                  });
+            });
+        }
+
+        // 2. Price Filter
+        if ($request->has('min_price') && $request->has('max_price')) {
+            $query->whereBetween('price', [$request->min_price, $request->max_price]);
+        }
+
+        // 3. Star Rating Filter
+        if ($request->has('stars') && is_array($request->stars)) {
+            $query->whereIn('star_rate', $request->stars);
+        }
+
+        // 4. Review Score Filter (checking against agoda_data json)
+        if ($request->has('review_score') && is_array($request->review_score)) {
+            $query->where(function($q) use ($request) {
+                foreach ($request->review_score as $score) {
+                    $q->orWhere('agoda_data->reviewScore', '>=', (float)$score);
+                }
+            });
+        }
+
+        // 5. Sorting
+        $sort = $request->input('sort', 'default');
+        switch ($sort) {
+            case 'price_asc':
+                $query->orderBy('price', 'asc');
+                break;
+            case 'price_desc':
+                $query->orderBy('price', 'desc');
+                break;
+            case 'star_desc':
+                $query->orderBy('star_rate', 'desc');
+                break;
+            case 'star_asc':
+                $query->orderBy('star_rate', 'asc');
+                break;
+            default:
+                $query->orderBy('agoda_last_synced_at', 'desc'); // Default to newest/synced
+                break;
+        }
+
+        $hotels = $query->with(['location', 'mainImage'])->paginate(12);
+        
+        return view('website.hotel', compact('hotels'));
+    }
+
+
+    hotel comtroller logic 
+    	#	Name	Type	Collation	Attributes	Null	Default	Comments	Extra	Action
+	1	id Primary	bigint		UNSIGNED	No	None		AUTO_INCREMENT	Change Change	Drop Drop	
+	2	title	varchar(255)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	3	slug Index	varchar(255)	utf8mb3_general_ci		No	None			Change Change	Drop Drop	
+	4	content	text	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	5	image_id	int			Yes	NULL			Change Change	Drop Drop	
+	6	banner_image_id	int			Yes	NULL			Change Change	Drop Drop	
+	7	location_id	int			Yes	NULL			Change Change	Drop Drop	
+	8	address	varchar(255)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	9	map_lat	varchar(20)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	10	map_lng	varchar(20)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	11	map_zoom	int			Yes	NULL			Change Change	Drop Drop	
+	12	is_featured	tinyint			Yes	NULL			Change Change	Drop Drop	
+	13	gallery	varchar(255)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	14	video	varchar(255)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	15	policy	text	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	16	star_rate	smallint			Yes	NULL			Change Change	Drop Drop	
+	17	price	decimal(12,2)			Yes	NULL			Change Change	Drop Drop	
+	18	check_in_time	varchar(255)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	19	check_out_time	varchar(255)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	20	allow_full_day	smallint			Yes	NULL			Change Change	Drop Drop	
+	21	sale_price	decimal(12,2)			Yes	NULL			Change Change	Drop Drop	
+	22	related_ids	varchar(191)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	23	status	varchar(50)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	24	create_user	bigint			Yes	NULL			Change Change	Drop Drop	
+	25	update_user	bigint			Yes	NULL			Change Change	Drop Drop	
+	26	deleted_at	timestamp			Yes	NULL			Change Change	Drop Drop	
+	27	created_at	timestamp			Yes	NULL			Change Change	Drop Drop	
+	28	updated_at	timestamp			Yes	NULL			Change Change	Drop Drop	
+	29	review_score	decimal(2,1)			Yes	NULL			Change Change	Drop Drop	
+	30	ical_import_url	varchar(191)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	31	enable_extra_price	tinyint			Yes	NULL			Change Change	Drop Drop	
+	32	extra_price	text	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	33	enable_service_fee	tinyint			Yes	NULL			Change Change	Drop Drop	
+	34	service_fee	text	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	35	surrounding	text	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	36	badge_tags	text	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	37	author_id	bigint			Yes	NULL			Change Change	Drop Drop	
+	38	min_day_before_booking	int			Yes	NULL			Change Change	Drop Drop	
+	39	min_day_stays	int			Yes	NULL			Change Change	Drop Drop	
+	40	agoda_hotel_id Index	varchar(255)	utf8mb4_unicode_ci		Yes	NULL			Change Change	Drop Drop	
+	41	agoda_last_synced_at	timestamp			Yes	NULL			Change Change	Drop Drop	
+	42	agoda_data	json			Yes	NULL			Change Change	Drop Drop	
+
+    bravo_hotels table
+
+
+    Route::get('/hotel',[WebsiteHomeController::class, 'hotel'])->name('hotel');  //web route
+
+
+    

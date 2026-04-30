@@ -1248,23 +1248,29 @@
                         <div class="tab-content" id="hotel-content">
                             <div class="flight">
                                 <div class="flight-search bar">
-                                    <div class="box location" id="hotel-destination-box">
-                                        <span class="label">Destination</span>
-                                        <div class="value" id="hotel-destination-value">Enter city or property</div>
-                                        <span class="sub-value" id="hotel-destination-sub"></span>
-                                        
-                                        <div class="airport-suggestion" id="hotel-destination-dropdown">
+                                    <div class="box location" id="hotel-country-box">
+                                        <span class="label">Country</span>
+                                        <div class="value" id="hotel-country-value">Select country</div>
+                                        <div class="sub-value" id="hotel-country-sub"></div>
+
+                                        <div class="airport-suggestion" id="hotel-country-dropdown">
                                             <div class="input-wrapper">
-                                                <input type="text" placeholder="Type city or hotel name" id="hotel-destination-search" onkeyup="filterHotelDestinations()">
-                                                <span class="close-btn" onclick="closeDropdown('hotel-destination')">×</span>
+                                                <input type="text" placeholder="Search country" id="hotel-country-search" onkeyup="filterHotelCountries()">
+                                                <span class="close-btn" onclick="closeDropdown('hotel-country')">×</span>
                                             </div>
-                                            <div class="airport-list" id="hotel-destination-list">
-                                                @foreach(config('cities.agoda_city_ids', []) as $cityName => $cityId)
-                                                <div class="airport-item" onclick="selectHotelDestination('{{ $cityName }}', '')">
-                                                    <div class="airport-name">{{ $cityName }}</div>
-                                                    <div class="airport-code">Agoda Destination</div>
-                                                </div>
-                                                @endforeach
+                                            <div class="airport-list" id="hotel-country-list">
+                                                @if(isset($countries) && $countries->count() > 0)
+                                                    @foreach($countries as $country)
+                                                    <div class="airport-item" onclick="selectHotelCountry('{{ $country }}')">
+                                                        <div class="airport-name">{{ $country }}</div>
+                                                        <div class="airport-code">Country</div>
+                                                    </div>
+                                                    @endforeach
+                                                @else
+                                                    <div class="airport-item">
+                                                        <div class="airport-name text-muted">No countries saved yet</div>
+                                                    </div>
+                                                @endif
                                             </div>
                                         </div>
                                     </div>
@@ -2232,9 +2238,9 @@
     });
 
     // Hotel Tab Functions
-    document.getElementById('hotel-destination-box')?.addEventListener('click', function(e) {
+    document.getElementById('hotel-country-box')?.addEventListener('click', function(e) {
         if (!e.target.closest('.airport-suggestion')) {
-            toggleDropdown('hotel-destination');
+            toggleDropdown('hotel-country');
         }
     });
 
@@ -2267,6 +2273,13 @@
         // If you want immediate redirection, you could call searchHotels() here
     }
 
+    function selectHotelCountry(country) {
+        document.getElementById('hotel-country-value').textContent = country;
+        // Optionally set sub-value
+        // document.getElementById('hotel-country-sub').textContent = country;
+        closeDropdown('hotel-country');
+    }
+
     function filterHotelDestinations() {
         const input = document.getElementById('hotel-destination-search');
         const filter = input.value.toLowerCase();
@@ -2277,6 +2290,22 @@
             const name = items[i].getElementsByClassName('airport-name')[0].textContent;
             const code = items[i].getElementsByClassName('airport-code')[0].textContent;
             if (name.toLowerCase().indexOf(filter) > -1 || code.toLowerCase().indexOf(filter) > -1) {
+                items[i].style.display = "";
+            } else {
+                items[i].style.display = "none";
+            }
+        }
+    }
+
+    function filterHotelCountries() {
+        const input = document.getElementById('hotel-country-search');
+        const filter = input.value.toLowerCase();
+        const list = document.getElementById('hotel-country-list');
+        const items = list.getElementsByClassName('airport-item');
+
+        for (let i = 0; i < items.length; i++) {
+            const name = items[i].getElementsByClassName('airport-name')[0].textContent;
+            if (name.toLowerCase().indexOf(filter) > -1) {
                 items[i].style.display = "";
             } else {
                 items[i].style.display = "none";
@@ -2342,89 +2371,62 @@
 
 
 <script>
-    // Add this near the top of your script after other constants
-const AGODA_API_ENDPOINT = 'http://affiliateapi7643.agoda.com/affiliateservice/lt_v1';
-// Replace with your actual SiteID and API Key
-const AGODA_SITE_ID = '123456'; // From PDF example
-const AGODA_API_KEY = '00000000-0000-0000-0000-000000000000'; // From PDF example
-
 // City ID mapping initialized from config/cities.php
 const cityIdMap = @json(config('cities.agoda_city_ids', []));
 
-// Function to search hotels using Agoda API
+// Destination to Country mapping from user_destinations (make case-insensitive)
+const destinationCountryMapRaw = @json($savedDestinations ?? []);
+const destinationCountryMap = {};
+Object.keys(destinationCountryMapRaw).forEach(key => {
+    destinationCountryMap[key.toLowerCase()] = destinationCountryMapRaw[key];
+});
+
+// Country to default Destination mapping (for quick lookup)
+const countryDestinationMap = @json($countryDestinationMap ?? []);
+
+// Function to search hotels by country
 async function searchHotels() {
-    const destination = document.getElementById('hotel-destination-value').textContent;
-    const cityId = cityIdMap[destination];
-    
-    if (!cityId) {
-        alert('Please select a valid destination from the list.');
+    const country = document.getElementById('hotel-country-value').textContent.trim();
+
+    if (!country || country === 'Select country') {
+        alert('Please select a country from the list.');
         return;
     }
-    
-    // Format dates for API (YYYY-MM-DD)
+
+    // Format dates for URL (DD/MM/YYYY format for the hotel route)
     const checkInDay = document.getElementById('hotel-checkin-day').textContent;
     const checkInMonth = document.getElementById('hotel-checkin-month').textContent;
     const checkOutDay = document.getElementById('hotel-checkout-day').textContent;
     const checkOutMonth = document.getElementById('hotel-checkout-month').textContent;
-    
-    const checkInDate = formatDateForAPI(checkInDay, checkInMonth);
-    const checkOutDate = formatDateForAPI(checkOutDay, checkOutMonth);
-    
+
+    // Convert month abbreviation to month number
+    const monthMap = {
+        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+    };
+
+    const checkInMonthNum = monthMap[checkInMonth] || '01';
+    const checkOutMonthNum = monthMap[checkOutMonth] || '01';
+
+    const checkInDate = `${checkInDay}/${checkInMonthNum}/${new Date().getFullYear()}`;
+    const checkOutDate = `${checkOutDay}/${checkOutMonthNum}/${new Date().getFullYear()}`;
+
     const adults = parseInt(document.getElementById('hotel-adults').textContent);
     const children = parseInt(document.getElementById('hotel-children').textContent);
     const rooms = parseInt(document.getElementById('hotel-rooms').textContent);
-    
-    // Prepare request body MATCHING your AgodaController search() validation
-    const requestBody = {
-        cityId: cityId,
-        checkInDate: checkInDate,
-        checkOutDate: checkOutDate,
-        adults: adults,
-        children: children,
-        rooms: rooms,
-        destination: destination,
-        currency: 'USD',
-        language: 'en-us'
-    };
-    
-    console.log('Hotel API Request:', requestBody);
-    
-    try {
-        // Show loading
-        const searchBtn = document.querySelector('#hotel-content .search-btn');
-        const originalText = searchBtn.innerHTML;
-        searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Searching...';
-        searchBtn.disabled = true;
-        
-        // Make API call
-        const response = await fetch('/api/hotels/search', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': csrfToken
-            },
-            body: JSON.stringify(requestBody)
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            displayHotelResults(data.data);
-        } else {
-            console.error('Validation Errors:', data.errors);
-            alert('Error searching hotels: ' + (data.error || 'Validation error'));
-        }
-        
-    } catch (error) {
-        console.error('Hotel search error:', error);
-        alert('Failed to search hotels. Please try again.');
-    } finally {
-        // Reset button
-        const searchBtn = document.querySelector('#hotel-content .search-btn');
-        searchBtn.innerHTML = 'Search Hotels';
-        searchBtn.disabled = false;
-    }
+
+    // Build query parameters - only country, not destination
+    const params = new URLSearchParams();
+    params.append('country', country);
+    params.append('daterange', `${checkInDate} - ${checkOutDate}`);
+    params.append('adults', adults);
+    params.append('children', children);
+    params.append('rooms', rooms);
+
+    // Redirect to hotel page with country-only parameters
+    const url = `/hotel?${params.toString()}`;
+    window.location.href = url;
 }
 
 // Add this function to reverse geocode coordinates to get location name
