@@ -69,7 +69,7 @@ class WebsiteHomeController extends Controller
     public function hotel(Request $request, AgodaService $agodaService)
     {
         $destination = $request->input('destination');
-        $cacheLimit = Carbon::now()->subMinutes(15);
+        $cacheLimit = Carbon::now()->subHours(24);
         
         \Log::info('Hotel search initiated', ['destination' => $destination, 'params' => $request->all()]);
 
@@ -210,8 +210,9 @@ class WebsiteHomeController extends Controller
             }
         }
 
-        // Final query to display hotels
-        $query = Hotel::where('status', 'publish');
+        // Final query to display hotels - Only show Agoda synced hotels
+        // $query = Hotel::where('status', 'publish');
+        $query = Hotel::where('status', 'publish')->whereNotNull('agoda_hotel_id');
 
         // 1. Destination Filter
         if (!empty($destination)) {

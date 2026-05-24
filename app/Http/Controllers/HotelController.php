@@ -9,9 +9,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use App\Exports\HotelsExport;
+use Maatwebsite\Excel\Facades\Excel;
 
 class HotelController extends Controller
 {
+    /**
+     * Export hotels to Excel.
+     *
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function export()
+    {
+        return Excel::download(new HotelsExport, 'hotels.xlsx');
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -19,7 +31,35 @@ class HotelController extends Controller
      */
     public function index()
     {
-        $hotels = Hotel::with(['addedBy', 'editedBy', 'location'])->paginate(10);
+        $hotels = Hotel::whereNotNull('agoda_hotel_id')->with(['addedBy', 'editedBy', 'location'])->paginate(10);
+        return view('admin.hotels.index', compact('hotels'));
+    }
+
+    /**
+     * Search hotels via AJAX.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function search(Request $request)
+    {
+        $q = $request->q;
+        $hotels = Hotel::whereNotNull('agoda_hotel_id')
+            ->where(function($query) use ($q) {
+                $query->where('title', 'like', "%{$q}%")
+                    ->orWhere('id', 'like', "%{$q}%")
+                    ->orWhere('address', 'like', "%{$q}%");
+            })
+            ->with(['addedBy', 'location'])
+            ->paginate(10);
+
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'page' => view('admin.hotels.searchData', compact('hotels'))->render(),
+            ]);
+        }
+
         return view('admin.hotels.index', compact('hotels'));
     }
 

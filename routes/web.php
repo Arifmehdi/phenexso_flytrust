@@ -38,6 +38,7 @@ use App\Http\Controllers\AgodaController;
 // Route::get('/agoda-hotel-search', [AgodaController::class, 'search']);
 // Add this route
 Route::post('/api/hotels/search', [AgodaController::class, 'search'])->name('hotels.search');
+Route::get('/api/hotels/all', [AgodaController::class, 'getAllData'])->name('hotels.all');
 
 Route::get('/test-agoda', function() {
     $agoda = app(\App\Services\AgodaService::class);
@@ -640,6 +641,8 @@ Route::middleware(['userRole:admin','auth'])->prefix('admin')->group(function(){
     Route::resource('attributes', AttributeController::class)->names('admin.attributes');
 
     // Hotels
+    Route::get('hotels/search', [HotelController::class, 'search'])->name('admin.hotels.search');
+    Route::get('hotels/export', [HotelController::class, 'export'])->name('admin.hotels.export');
     Route::resource('hotels', HotelController::class)->names('admin.hotels');
 
 

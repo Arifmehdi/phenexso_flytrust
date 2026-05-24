@@ -22,6 +22,7 @@ class VerifyCsrfToken extends Middleware
         '/cancel',
         '/ipn',
         'order/*',
+        'api/hotels/search',
     ];
 
 }

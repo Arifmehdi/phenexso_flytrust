@@ -19,6 +19,52 @@ class AgodaController extends Controller
         $this->agoda = $agoda;
     }
 
+    public function getAllData()
+    {
+        try {
+            $id = request('id');
+            if ($id) {
+                $hotel = Hotel::find($id);
+                
+                if (!$hotel) {
+                    return response()->json(['success' => false, 'error' => 'Hotel not found'], 404);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'hotel_id' => $hotel->id,
+                    'title' => $hotel->title,
+                    'agoda_hotel_id' => $hotel->agoda_hotel_id,
+                    'raw_agoda_data' => $hotel->agoda_data ?: 'No Agoda data synced yet for this hotel.'
+                ]);
+            }
+
+            $hotels = Hotel::whereNotNull('agoda_hotel_id')->get();
+            
+            return response()->json([
+                'success' => true,
+                'count' => $hotels->count(),
+                'data' => $hotels->map(function($hotel) {
+                    return [
+                        'id' => $hotel->id,
+                        'agoda_hotel_id' => $hotel->agoda_hotel_id,
+                        'title' => $hotel->title,
+                        'price' => $hotel->price,
+                        'star_rate' => $hotel->star_rate,
+                        'address' => $hotel->address,
+                        'last_synced_at' => $hotel->agoda_last_synced_at,
+                        'raw_agoda_data' => $hotel->agoda_data
+                    ];
+                })
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function search(Request $request)
     {
         try {
@@ -39,8 +85,8 @@ class AgodaController extends Controller
                 'destination' => 'nullable|string'
             ]);
 
-            // 1. Check database for existing data for this cityId that is < 15 minutes old
-            $cacheLimit = Carbon::now()->subMinutes(15);
+            // 1. Check database for existing data for this cityId that is < 24 hours old
+            $cacheLimit = Carbon::now()->subHours(24);
             $cachedHotels = Hotel::where('agoda_hotel_id', '!=', null)
                 // Since Agoda results vary by date/occupancy, purely caching by cityId might be simplified.
                 // For true caching, you'd include dates/occupancy in the check.
